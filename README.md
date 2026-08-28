@@ -264,7 +264,7 @@ Buka peramban web pada `http://localhost:5173` untuk mengakses antarmuka kontrol
 ## Pengembang & Pembimbing Akademik
 
 * **Institusi:** Politeknik Manufaktur Bandung (POLMAN Bandung)
-* **Program Studi:** Teknik Otomasi Manufaktur & Mekatronika
+* **Program Studi:** Teknologi Rekayasa Informatika Industri
 * **Pengembang Utama:** [Muhammad Dzaki](https://github.com/muhammaddz4ki)
 
 ---
