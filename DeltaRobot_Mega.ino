@@ -633,37 +633,37 @@ void runAutoSequence() {
 
   // 1. Ambil (Pick A)
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_approach)) { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_down))     { autoRunRunning = false; return; }
-  safeDelay(150);
+  safeDelay(100);
   
   hisapOn();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_up))       { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
-  // 2. Balik ke Home (Transit tengah) membawa benda
-  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  if (!safeDelay(300)) { autoRunRunning = false; return; }
+  // 2. Balik ke Home sampai menyentuh Limit Switch (Re-zeroing membawa benda)
+  performHoming();
+  safeDelay(200);
 
   // 3. Letak (Drop A)
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_approach)) { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_down))     { autoRunRunning = false; return; }
-  safeDelay(150);
+  safeDelay(100);
 
   hisapOff();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_up))       { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
-  // 4. Balik ke Home lagi (Posisi Standby Selesai)
-  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  safeDelay(250);
+  // 4. Balik lagi ke Home sampai menyentuh Limit Switch (Re-zeroing Selesai)
+  performHoming();
+  safeDelay(200);
   
   sendResponse(F("[START_A] Urutan otomatis SELESAI."));
   autoRunRunning = false;
@@ -678,37 +678,37 @@ void runAutoSequence1() {
 
   // 1. Ambil (Pick B)
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_approach)) { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_down))     { autoRunRunning = false; return; }
-  safeDelay(150);
+  safeDelay(100);
 
   hisapOn();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_up))       { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
-  // 2. Balik ke Home (Transit tengah) membawa benda
-  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  if (!safeDelay(300)) { autoRunRunning = false; return; }
+  // 2. Balik ke Home sampai menyentuh Limit Switch (Re-zeroing membawa benda)
+  performHoming();
+  safeDelay(200);
 
   // 3. Letak (Drop B)
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_approach)) { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_down))     { autoRunRunning = false; return; }
-  safeDelay(150);
+  safeDelay(100);
 
   hisapOff();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_up))       { autoRunRunning = false; return; }
-  safeDelay(200);
+  safeDelay(150);
 
-  // 4. Balik ke Home lagi (Posisi Standby Selesai)
-  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  safeDelay(250);
+  // 4. Balik lagi ke Home sampai menyentuh Limit Switch (Re-zeroing Selesai)
+  performHoming();
+  safeDelay(200);
 
   sendResponse(F("[START_B] Urutan otomatis SELESAI."));
   autoRunRunning = false;
