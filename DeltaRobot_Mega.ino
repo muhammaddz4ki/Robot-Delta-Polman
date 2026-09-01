@@ -207,7 +207,14 @@ bool checkEmergencyInput() {
     String peekCmd = Serial.readStringUntil('\n');
     peekCmd.trim();
     if (peekCmd.length() > 0) {
-      handleCommand(peekCmd);
+      if (autoRunRunning) {
+        String up = peekCmd; up.toUpperCase();
+        if (up == "EMG" || up == "STOP" || up == "RESET" || up == "EMG OFF" || up == "EMG ON") {
+          handleCommand(peekCmd);
+        }
+      } else {
+        handleCommand(peekCmd);
+      }
     }
   }
 
@@ -216,7 +223,14 @@ bool checkEmergencyInput() {
     String peekCmd = Serial2.readStringUntil('\n');
     peekCmd.trim();
     if (peekCmd.length() > 0) {
-      handleCommand(peekCmd);
+      if (autoRunRunning) {
+        String up = peekCmd; up.toUpperCase();
+        if (up == "EMG" || up == "STOP" || up == "RESET" || up == "EMG OFF" || up == "EMG ON") {
+          handleCommand(peekCmd);
+        }
+      } else {
+        handleCommand(peekCmd);
+      }
     }
   }
 
@@ -227,7 +241,7 @@ bool safeDelay(unsigned long ms) {
   unsigned long start = millis();
   while (millis() - start < ms) {
     if (checkEmergencyInput()) return false;
-    delay(2);
+    delay(1);
   }
   return true;
 }
@@ -344,6 +358,9 @@ bool moveToAngles(float targetAngles[3]) {
   }
 
   // Hitung rasio kecepatan agar ketiga motor selesai gerak pada saat bersamaan
+  float minSpd = baseMaxSpeed * 0.10;
+  if (minSpd < 20.0) minSpd = 20.0;
+
   float spd[3];
   for (int i = 0; i < 3; i++) {
     if (aSteps[i] == 0) {
@@ -351,7 +368,7 @@ bool moveToAngles(float targetAngles[3]) {
     } else {
       float ratio = (float)aSteps[i] / (float)maxSteps;
       spd[i] = baseMaxSpeed * ratio;
-      if (spd[i] < MIN_SCALED_SPEED) spd[i] = MIN_SCALED_SPEED;
+      if (spd[i] < minSpd)           spd[i] = minSpd;
       if (spd[i] > baseMaxSpeed)     spd[i] = baseMaxSpeed;
     }
   }
@@ -616,28 +633,37 @@ void runAutoSequence() {
 
   // 1. Ambil (Pick A)
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_approach)) { autoRunRunning = false; return; }
+  safeDelay(200);
+
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_down))     { autoRunRunning = false; return; }
+  safeDelay(150);
   
   hisapOn();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_up))       { autoRunRunning = false; return; }
+  safeDelay(200);
 
   // 2. Balik ke Home (Transit tengah) membawa benda
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  if (!safeDelay(200)) { autoRunRunning = false; return; }
+  if (!safeDelay(300)) { autoRunRunning = false; return; }
 
   // 3. Letak (Drop A)
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_approach)) { autoRunRunning = false; return; }
+  safeDelay(200);
+
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_down))     { autoRunRunning = false; return; }
+  safeDelay(150);
 
   hisapOff();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_up))       { autoRunRunning = false; return; }
+  safeDelay(200);
 
   // 4. Balik ke Home lagi (Posisi Standby Selesai)
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
+  safeDelay(250);
   
   sendResponse(F("[START_A] Urutan otomatis SELESAI."));
   autoRunRunning = false;
@@ -652,28 +678,37 @@ void runAutoSequence1() {
 
   // 1. Ambil (Pick B)
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_approach)) { autoRunRunning = false; return; }
+  safeDelay(200);
+
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_down))     { autoRunRunning = false; return; }
+  safeDelay(150);
 
   hisapOn();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_up))       { autoRunRunning = false; return; }
+  safeDelay(200);
 
   // 2. Balik ke Home (Transit tengah) membawa benda
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  if (!safeDelay(200)) { autoRunRunning = false; return; }
+  if (!safeDelay(300)) { autoRunRunning = false; return; }
 
   // 3. Letak (Drop B)
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_approach)) { autoRunRunning = false; return; }
+  safeDelay(200);
+
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_down))     { autoRunRunning = false; return; }
+  safeDelay(150);
 
   hisapOff();
   if (!safeDelay(500)) { autoRunRunning = false; return; }
 
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_up))       { autoRunRunning = false; return; }
+  safeDelay(200);
 
   // 4. Balik ke Home lagi (Posisi Standby Selesai)
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
+  safeDelay(250);
 
   sendResponse(F("[START_B] Urutan otomatis SELESAI."));
   autoRunRunning = false;
@@ -777,8 +812,11 @@ void handleCommand(String input) {
 // =================================================================
 void setup() {
   Serial.begin(115200);  // USB Monitor PC
+  Serial.setTimeout(10);
   Serial2.begin(115200); // UART ke ESP32 (TX2 pin 16, RX2 pin 17) - High Speed
+  Serial2.setTimeout(10);
   Serial1.begin(115200); // Fallback UART (TX1 pin 18, RX1 pin 19)
+  Serial1.setTimeout(10);
 
   pinMode(limitX, INPUT_PULLUP);
   pinMode(limitY, INPUT_PULLUP);
