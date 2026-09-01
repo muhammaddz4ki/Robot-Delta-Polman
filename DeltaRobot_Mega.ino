@@ -62,7 +62,7 @@ const float GEAR_RATIO       = 3.0;
 const float STEPS_PER_DEGREE = (STEPS_PER_TURN * GEAR_RATIO) / 360.0;
 
 // ===== INVERT ARAH MOTOR =====
-const bool INVERT_X = false;
+const bool INVERT_X = true;
 const bool INVERT_Y = false;
 const bool INVERT_Z = false;
 
