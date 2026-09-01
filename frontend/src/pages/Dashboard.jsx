@@ -772,6 +772,24 @@ const Dashboard = () => {
     setLogs(prev => [...prev, `[Z-OFFSET] Seluruh titik Z disesuaikan (${delta > 0 ? '+' : ''}${delta} mm). Klik 'Terapkan Semua' untuk sinkronisasi ke robot.`]);
   };
 
+  const handleStartA = async () => {
+    setLogs(prev => [...prev, `[SYSTEM] Sinkronisasi Profil A -> Menjalankan START A...`]);
+    await sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`);
+    await sleep(100);
+    await sendCommand(`SET_A_DROP ${dropA.x} ${dropA.y} ${dropA.z}`);
+    await sleep(100);
+    await sendCommand('STARTA');
+  };
+
+  const handleStartB = async () => {
+    setLogs(prev => [...prev, `[SYSTEM] Sinkronisasi Profil B -> Menjalankan START B...`]);
+    await sendCommand(`SET_B_PICK ${pickB.x} ${pickB.y} ${pickB.z}`);
+    await sleep(100);
+    await sendCommand(`SET_B_DROP ${dropB.x} ${dropB.y} ${dropB.z}`);
+    await sleep(100);
+    await sendCommand('STARTB');
+  };
+
   return (
     <div className="dashboard-layout">
       {/* TOPBAR */}
@@ -873,10 +891,10 @@ const Dashboard = () => {
               >
                 LEPAS
               </button>
-              <button className="clean-btn primary" onClick={() => sendCommand('STARTA')}>
+              <button className="clean-btn primary" onClick={handleStartA}>
                 START A
               </button>
-              <button className="clean-btn primary" onClick={() => sendCommand('STARTB')}>
+              <button className="clean-btn primary" onClick={handleStartB}>
                 START B
               </button>
               <button 
@@ -1317,7 +1335,7 @@ const Dashboard = () => {
               <button
                 className="clean-btn"
                 style={{ padding: '2px 6px', fontSize: '0.68rem' }}
-                onClick={() => sendCommand('STARTA')}
+                onClick={handleStartA}
               >
                 Test Routine A
               </button>
@@ -1384,7 +1402,7 @@ const Dashboard = () => {
               <button
                 className="clean-btn"
                 style={{ padding: '2px 6px', fontSize: '0.68rem' }}
-                onClick={() => sendCommand('STARTB')}
+                onClick={handleStartB}
               >
                 Test Routine B
               </button>

@@ -94,29 +94,29 @@ const float DEFAULT_Y = 0.0;
 const float DEFAULT_Z = -200.0;
 
 // ===== SETTING POSISI START_A (DINAMIS DARI WEB / BAWAAN POLMAN) =====
-float seqA_pick_X = 20.0;
-float seqA_pick_Y = -30.0;
+float seqA_pick_X = 30.0;
+float seqA_pick_Y = -50.0;
 float seqA_pick_Z_approach = -220.0;
-float seqA_pick_Z_down     = -280.0;
+float seqA_pick_Z_down     = -263.0;
 float seqA_pick_Z_up       = -220.0;
 
-float seqA_drop_X = 20.0;
-float seqA_drop_Y = 120.0;
+float seqA_drop_X = 50.0;
+float seqA_drop_Y = 140.0;
 float seqA_drop_Z_approach = -220.0;
-float seqA_drop_Z_down     = -320.0;
+float seqA_drop_Z_down     = -310.0;
 float seqA_drop_Z_up       = -220.0;
 
 // ===== SETTING POSISI START_B (DINAMIS DARI WEB / BAWAAN POLMAN) =====
-float seqB_pick_X = -55.0;
-float seqB_pick_Y = -40.0;
+float seqB_pick_X = -50.0;
+float seqB_pick_Y = -50.0;
 float seqB_pick_Z_approach = -220.0;
-float seqB_pick_Z_down     = -280.0;
+float seqB_pick_Z_down     = -260.0;
 float seqB_pick_Z_up       = -220.0;
 
-float seqB_drop_X = -80.0;
-float seqB_drop_Y = 110.0;
+float seqB_drop_X = -35.0;
+float seqB_drop_Y = 130.0;
 float seqB_drop_Z_approach = -220.0;
-float seqB_drop_Z_down     = -320.0;
+float seqB_drop_Z_down     = -310.0;
 float seqB_drop_Z_up       = -220.0;
 
 // ===== EEPROM =====
