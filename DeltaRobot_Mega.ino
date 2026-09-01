@@ -644,9 +644,13 @@ void runAutoSequence() {
   if (!moveToXYZ(seqA_pick_X, seqA_pick_Y, seqA_pick_Z_up))       { autoRunRunning = false; return; }
   safeDelay(150);
 
-  // 2. Balik ke Home Tengah (Transit halus membawa benda)
+  // 2. Transit Tengah -> Homing Limit Switch membawa benda -> Turun ke Tengah Standby
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  safeDelay(250);
+  safeDelay(200);
+  performHoming();
+  safeDelay(200);
+  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
+  safeDelay(200);
 
   // 3. Letak (Drop A)
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_approach)) { autoRunRunning = false; return; }
@@ -661,9 +665,13 @@ void runAutoSequence() {
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_up))       { autoRunRunning = false; return; }
   safeDelay(150);
 
-  // 4. Balik ke Home Tengah Selesai (Posisi Standby Siap Kerja)
+  // 4. Transit Tengah -> Homing Limit Switch Akhir -> Turun ke Standby
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  safeDelay(250);
+  safeDelay(200);
+  performHoming();
+  safeDelay(200);
+  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
+  safeDelay(200);
   
   sendResponse(F("[START_A] Urutan otomatis SELESAI."));
   autoRunRunning = false;
@@ -689,9 +697,13 @@ void runAutoSequence1() {
   if (!moveToXYZ(seqB_pick_X, seqB_pick_Y, seqB_pick_Z_up))       { autoRunRunning = false; return; }
   safeDelay(150);
 
-  // 2. Balik ke Home Tengah (Transit halus membawa benda)
+  // 2. Transit Tengah -> Homing Limit Switch membawa benda -> Turun ke Tengah Standby
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  safeDelay(250);
+  safeDelay(200);
+  performHoming();
+  safeDelay(200);
+  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
+  safeDelay(200);
 
   // 3. Letak (Drop B)
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_approach)) { autoRunRunning = false; return; }
@@ -706,9 +718,13 @@ void runAutoSequence1() {
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_up))       { autoRunRunning = false; return; }
   safeDelay(150);
 
-  // 4. Balik ke Home Tengah Selesai (Posisi Standby Siap Kerja)
+  // 4. Transit Tengah -> Homing Limit Switch Akhir -> Turun ke Standby
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
-  safeDelay(250);
+  safeDelay(200);
+  performHoming();
+  safeDelay(200);
+  if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
+  safeDelay(200);
 
   sendResponse(F("[START_B] Urutan otomatis SELESAI."));
   autoRunRunning = false;
