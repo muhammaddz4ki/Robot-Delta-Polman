@@ -322,12 +322,18 @@ void printInverseKinematicsAngles(float theta[3]) {
 // COORDINATED MOVE (AccelStepper dengan Sinkronisasi Kecepatan)
 // =================================================================
 bool moveToAngles(float targetAngles[3]) {
-  long steps[3];
-  steps[0] = (long)((targetAngles[0] - currentAngle[0]) * STEPS_PER_DEGREE);
-  steps[1] = (long)((targetAngles[1] - currentAngle[1]) * STEPS_PER_DEGREE);
-  steps[2] = (long)((targetAngles[2] - currentAngle[2]) * STEPS_PER_DEGREE);
+  // Hitung target posisi step absolut dari titik Home (0 step)
+  long targetSteps[3];
+  targetSteps[0] = (long)round((targetAngles[0] - HOMING_THETA_DEG) * STEPS_PER_DEGREE);
+  targetSteps[1] = (long)round((targetAngles[1] - HOMING_THETA_DEG) * STEPS_PER_DEGREE);
+  targetSteps[2] = (long)round((targetAngles[2] - HOMING_THETA_DEG) * STEPS_PER_DEGREE);
 
-  long aSteps[3] = { labs(steps[0]), labs(steps[1]), labs(steps[2]) };
+  long diffSteps[3];
+  diffSteps[0] = targetSteps[0] - stepperX.currentPosition();
+  diffSteps[1] = targetSteps[1] - stepperY.currentPosition();
+  diffSteps[2] = targetSteps[2] - stepperZ.currentPosition();
+
+  long aSteps[3] = { labs(diffSteps[0]), labs(diffSteps[1]), labs(diffSteps[2]) };
   long maxSteps = aSteps[0];
   if (aSteps[1] > maxSteps) maxSteps = aSteps[1];
   if (aSteps[2] > maxSteps) maxSteps = aSteps[2];
@@ -356,9 +362,10 @@ bool moveToAngles(float targetAngles[3]) {
   stepperY.setMaxSpeed(spd[1]); stepperY.setAcceleration(baseAccel);
   stepperZ.setMaxSpeed(spd[2]); stepperZ.setAcceleration(baseAccel);
 
-  stepperX.move(steps[0]);
-  stepperY.move(steps[1]);
-  stepperZ.move(steps[2]);
+  // Gunakan posisi ABSOLUT (moveTo) agar tidak ada akumulasi error rounding desimal
+  stepperX.moveTo(targetSteps[0]);
+  stepperY.moveTo(targetSteps[1]);
+  stepperZ.moveTo(targetSteps[2]);
 
   currentAngle[0] = targetAngles[0];
   currentAngle[1] = targetAngles[1];
