@@ -56,10 +56,13 @@ const float rf = 130.0;
 const float re = 300.0;
 const float baseHeight = 45.0;
 
-// ===== PARAMETER MOTOR (HANPOSE 17HS4401S-PG5.18) =====
-const float STEPS_PER_TURN   = 200.0; // 1.8 derajat per step
-const float GEAR_RATIO       = 5.18;  // Planetary Gearbox Ratio 5.18:1
-const float STEPS_PER_DEGREE = (STEPS_PER_TURN * GEAR_RATIO) / 360.0;
+// ===== PARAMETER MOTOR & DRIVER DRV8825 (1/32 MICROSTEP + HANPOSE PG5.18) =====
+const float MICROSTEPPING    = 32.0;   // Mode 1/32 Microstep (Pin MS1, MS2, MS3 = HIGH via pull-up 10k)
+const float STEPS_PER_REV    = 200.0;  // 1.8 derajat per full-step
+const float STEPS_PER_TURN   = STEPS_PER_REV * MICROSTEPPING; // 6,400 steps per putaran motor
+const float GEAR_RATIO       = 5.18;   // Planetary Gearbox Ratio 5.18:1
+const float TOTAL_STEPS_TURN = STEPS_PER_TURN * GEAR_RATIO;   // 33,152 steps per putaran output arm
+const float STEPS_PER_DEGREE = TOTAL_STEPS_TURN / 360.0;      // 92.088889 steps per derajat
 
 // ===== INVERT ARAH MOTOR =====
 const bool INVERT_X = true;
@@ -67,13 +70,13 @@ const bool INVERT_Y = false;
 const bool INVERT_Z = false;
 
 // ===== PARAMETER GERAKAN NORMAL (AccelStepper) =====
-float baseMaxSpeed   = 1000.0; // Disesuaikan untuk rasio 5.18
-float baseAccel      = 500.0;  // Disesuaikan untuk rasio 5.18
-const float MIN_SCALED_SPEED = 250.0;
+float baseMaxSpeed   = 4000.0; // 4000 steps/s (~43.4 deg/s, sangat halus, presisi & hening)
+float baseAccel      = 2500.0; // 2500 steps/s²
+const float MIN_SCALED_SPEED = 500.0;
 
 // ===== PARAMETER HOMING - POWER MODE =====
-const float HOMING_SPEED        = 130.0; // Disesuaikan untuk rasio 5.18 (sangat bertenaga & presisi)
-const int   STEP_PULSE_WIDTH    = 8;
+const float HOMING_SPEED        = 1800.0; // ~19.5 deg/s (homing cepat, sangat bertenaga & presisi)
+const int   STEP_PULSE_WIDTH    = 4;      // 4 mikrodetik (optimal untuk DRV8825 1/32)
 const unsigned long HOMING_TIMEOUT_MS = 30000UL;
 
 const uint8_t HOMING_DIR_X = LOW;
@@ -733,7 +736,7 @@ void handleCommand(String input) {
 
   else if (upper.startsWith("SET_SPEED ")) { 
     float spd = input.substring(10).toFloat(); 
-    if (spd >= 50.0 && spd <= 2000.0) {
+    if (spd >= 100.0 && spd <= 8000.0) {
       baseMaxSpeed = spd;
       applyBaseStepperParams();
       sendResponse("[MOTOR] Kecepatan diatur: " + String(spd, 0));
@@ -741,7 +744,7 @@ void handleCommand(String input) {
   }
   else if (upper.startsWith("SET_ACCEL ")) { 
     float acc = input.substring(10).toFloat(); 
-    if (acc >= 50.0 && acc <= 2000.0) {
+    if (acc >= 100.0 && acc <= 6000.0) {
       baseAccel = acc;
       applyBaseStepperParams();
       sendResponse("[MOTOR] Akselerasi diatur: " + String(acc, 0));

@@ -210,11 +210,11 @@ const Dashboard = () => {
   });
   const [speedVal, setSpeedVal] = useState(() => {
     const s = localStorage.getItem('delta_motor_speed');
-    return s ? Number(s) : 1000;
+    return s ? Number(s) : 4000;
   });
   const [accelVal, setAccelVal] = useState(() => {
     const s = localStorage.getItem('delta_motor_accel');
-    return s ? Number(s) : 500;
+    return s ? Number(s) : 2500;
   });
   const [isPlayingPattern, setIsPlayingPattern] = useState(false);
 
