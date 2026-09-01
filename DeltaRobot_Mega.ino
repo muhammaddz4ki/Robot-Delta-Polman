@@ -490,28 +490,7 @@ void performHoming() {
 }
 
 void redoHoming() {
-  sendResponse(F("[HOME] Memulai homing bertahap (Smooth Staged Homing)..."));
-  
-  // Jika robot sebelumnya sudah pernah homed dan sedang di bawah, angkat dulu pelan-pelan ke tengah
-  if (homingComplete && currentZ < -210.0) {
-    // Gunakan kecepatan dan akselerasi lembut untuk mengangkat beban
-    float oldSpeed = baseMaxSpeed;
-    float oldAccel = baseAccel;
-    baseMaxSpeed = 400.0;
-    baseAccel    = 250.0;
-    applyBaseStepperParams();
-
-    moveToXYZ(currentX, currentY, -200.0);
-    safeDelay(150);
-    moveToXYZ(0, 0, -200.0);
-    safeDelay(150);
-
-    // Kembalikan parameter motor ke normal
-    baseMaxSpeed = oldSpeed;
-    baseAccel    = oldAccel;
-    applyBaseStepperParams();
-  }
-
+  sendResponse(F("[HOME] Memulai homing langsung (Power Mode)..."));
   homingComplete = false;
   performHoming();
   homingComplete = true;
