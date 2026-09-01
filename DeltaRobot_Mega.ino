@@ -96,30 +96,28 @@ const float DEFAULT_Z = -200.0;
 // ===== SETTING POSISI START_A (DINAMIS DARI WEB / BAWAAN POLMAN) =====
 float seqA_pick_X = 20.0;
 float seqA_pick_Y = -30.0;
-float seqA_pick_Z_approach = -250.0;
+float seqA_pick_Z_approach = -220.0;
 float seqA_pick_Z_down     = -280.0;
 float seqA_pick_Z_up       = -220.0;
 
 float seqA_drop_X = 20.0;
 float seqA_drop_Y = 120.0;
-float seqA_drop_Z_approach1 = -230.0;
-float seqA_drop_Z_approach2 = -250.0;
-float seqA_drop_Z_down      = -320.0;
-float seqA_drop_Z_up        = -230.0;
+float seqA_drop_Z_approach = -220.0;
+float seqA_drop_Z_down     = -320.0;
+float seqA_drop_Z_up       = -220.0;
 
 // ===== SETTING POSISI START_B (DINAMIS DARI WEB / BAWAAN POLMAN) =====
 float seqB_pick_X = -55.0;
 float seqB_pick_Y = -40.0;
-float seqB_pick_Z_approach = -250.0;
+float seqB_pick_Z_approach = -220.0;
 float seqB_pick_Z_down     = -280.0;
 float seqB_pick_Z_up       = -220.0;
 
 float seqB_drop_X = -80.0;
 float seqB_drop_Y = 110.0;
-float seqB_drop_Z_approach1 = -230.0;
-float seqB_drop_Z_approach2 = -250.0;
-float seqB_drop_Z_down      = -320.0;
-float seqB_drop_Z_up        = -220.0;
+float seqB_drop_Z_approach = -220.0;
+float seqB_drop_Z_down     = -320.0;
+float seqB_drop_Z_up       = -220.0;
 
 // ===== EEPROM =====
 const byte EEPROM_MAGIC      = 0xA5;
@@ -630,8 +628,7 @@ void runAutoSequence() {
   if (!safeDelay(200)) { autoRunRunning = false; return; }
 
   // 3. Letak (Drop A)
-  if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_approach1)){ autoRunRunning = false; return; }
-  if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_approach2)){ autoRunRunning = false; return; }
+  if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_approach)) { autoRunRunning = false; return; }
   if (!moveToXYZ(seqA_drop_X, seqA_drop_Y, seqA_drop_Z_down))     { autoRunRunning = false; return; }
 
   hisapOff();
@@ -667,8 +664,7 @@ void runAutoSequence1() {
   if (!safeDelay(200)) { autoRunRunning = false; return; }
 
   // 3. Letak (Drop B)
-  if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_approach1)){ autoRunRunning = false; return; }
-  if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_approach2)){ autoRunRunning = false; return; }
+  if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_approach)) { autoRunRunning = false; return; }
   if (!moveToXYZ(seqB_drop_X, seqB_drop_Y, seqB_drop_Z_down))     { autoRunRunning = false; return; }
 
   hisapOff();
@@ -695,8 +691,8 @@ void updateCoordinate(String input, float &x, float &y, float &z_down, float &z_
     y = input.substring(space2 + 1, space3).toFloat();
     z_down = input.substring(space3 + 1).toFloat();
     
-    // Hitung ketinggian approach dan up yang sinkron dengan z_down
-    z_appr = (z_down + 30.0 > -200.0) ? -200.0 : (z_down + 30.0);
+    // Ketinggian approach & lift yang aman
+    z_appr = -220.0;
     z_up   = -220.0;
 
     sendResponse("[WEB] Koordinat diupdate: X=" + String(x, 1) + " Y=" + String(y, 1) + " Z=" + String(z_down, 1));
@@ -743,9 +739,9 @@ void handleCommand(String input) {
   else if (upper == "STARTB") { runAutoSequence1(); }
 
   else if (upper.startsWith("SET_A_PICK")) { updateCoordinate(upper, seqA_pick_X, seqA_pick_Y, seqA_pick_Z_down, seqA_pick_Z_approach, seqA_pick_Z_up); }
-  else if (upper.startsWith("SET_A_DROP")) { updateCoordinate(upper, seqA_drop_X, seqA_drop_Y, seqA_drop_Z_down, seqA_drop_Z_approach1, seqA_drop_Z_up); seqA_drop_Z_approach2 = seqA_drop_Z_approach1 - 20.0; }
+  else if (upper.startsWith("SET_A_DROP")) { updateCoordinate(upper, seqA_drop_X, seqA_drop_Y, seqA_drop_Z_down, seqA_drop_Z_approach, seqA_drop_Z_up); }
   else if (upper.startsWith("SET_B_PICK")) { updateCoordinate(upper, seqB_pick_X, seqB_pick_Y, seqB_pick_Z_down, seqB_pick_Z_approach, seqB_pick_Z_up); }
-  else if (upper.startsWith("SET_B_DROP")) { updateCoordinate(upper, seqB_drop_X, seqB_drop_Y, seqB_drop_Z_down, seqB_drop_Z_approach1, seqB_drop_Z_up); seqB_drop_Z_approach2 = seqB_drop_Z_approach1 - 20.0; }
+  else if (upper.startsWith("SET_B_DROP")) { updateCoordinate(upper, seqB_drop_X, seqB_drop_Y, seqB_drop_Z_down, seqB_drop_Z_approach, seqB_drop_Z_up); }
 
   else if (upper.startsWith("SET_SPEED ")) { 
     float spd = input.substring(10).toFloat(); 

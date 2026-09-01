@@ -622,8 +622,11 @@ const Dashboard = () => {
       setLogs(prev => [...prev, `[SYSTEM] Template dimuat: ${name}`]);
 
       await sendCommand(`SET_A_PICK ${t.pickA_x} ${t.pickA_y} ${t.pickA_z}`);
+      await sleep(150);
       await sendCommand(`SET_A_DROP ${t.dropA_x} ${t.dropA_y} ${t.dropA_z}`);
+      await sleep(150);
       await sendCommand(`SET_B_PICK ${t.pickB_x} ${t.pickB_y} ${t.pickB_z}`);
+      await sleep(150);
       await sendCommand(`SET_B_DROP ${t.dropB_x} ${t.dropB_y} ${t.dropB_z}`);
     }
   };
