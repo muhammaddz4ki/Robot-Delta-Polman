@@ -108,7 +108,7 @@ $$\begin{aligned}
 \text{Panjang Lengan Biceps } (r_f) &= 130.0\text{ mm} \\
 \text{Panjang Lengan Forearm } (r_e) &= 300.0\text{ mm} \\
 \text{Radius End-Effector } (e) &= 40.0\text{ mm} \\
-\text{Gear Ratio Stepper} &= 3:1 \\
+\text{Planetary Gear Ratio (Hanpose PG5.18)} &= 5.18:1 \\
 \text{Sudut Arm saat Homing } (\theta_{\text{home}}) &= -36.0^\circ
 \end{aligned}$$
 
@@ -124,9 +124,9 @@ $$\begin{aligned}
 ### 1. Mikrokontroler Utama (Arduino Mega 2560)
 | Kategori | Nama Sinyal | Pin Arduino Mega | Mode Pin | Keterangan / Konfigurasi |
 |---|---|---|---|---|
-| **Motor Stepper X** | STEP / DIR | Pin `7` / Pin `6` | OUTPUT | Ratio 3:1 (Steps/deg = 1.6667) |
-| **Motor Stepper Y** | STEP / DIR | Pin `44` / Pin `42` | OUTPUT | Ratio 3:1 (Steps/deg = 1.6667) |
-| **Motor Stepper Z** | STEP / DIR | Pin `5` / Pin `4` | OUTPUT | Ratio 3:1 (Steps/deg = 1.6667) |
+| **Motor Stepper X** | STEP / DIR | Pin `7` / Pin `6` | OUTPUT | Hanpose PG5.18 (Ratio 5.18:1, 2.878 steps/deg) |
+| **Motor Stepper Y** | STEP / DIR | Pin `44` / Pin `42` | OUTPUT | Hanpose PG5.18 (Ratio 5.18:1, 2.878 steps/deg) |
+| **Motor Stepper Z** | STEP / DIR | Pin `5` / Pin `4` | OUTPUT | Hanpose PG5.18 (Ratio 5.18:1, 2.878 steps/deg) |
 | **Relay Dinamo Vakum** | Suction Signal | Pin `12` | OUTPUT | Active LOW (LOW = ON, HIGH = OFF) |
 | **Emergency Switch** | EMG Button | Pin `31` | INPUT_PULLUP | Active HIGH (NC Switch opens on press) |
 | **Limit Switch X** | Limit Sensor | Pin `9` | INPUT_PULLUP | Active LOW saat tertekan |

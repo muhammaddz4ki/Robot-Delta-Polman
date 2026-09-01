@@ -56,9 +56,9 @@ const float rf = 130.0;
 const float re = 300.0;
 const float baseHeight = 45.0;
 
-// ===== PARAMETER MOTOR =====
-const float STEPS_PER_TURN   = 200.0;
-const float GEAR_RATIO       = 3.0;
+// ===== PARAMETER MOTOR (HANPOSE 17HS4401S-PG5.18) =====
+const float STEPS_PER_TURN   = 200.0; // 1.8 derajat per step
+const float GEAR_RATIO       = 5.18;  // Planetary Gearbox Ratio 5.18:1
 const float STEPS_PER_DEGREE = (STEPS_PER_TURN * GEAR_RATIO) / 360.0;
 
 // ===== INVERT ARAH MOTOR =====
@@ -67,12 +67,12 @@ const bool INVERT_Y = false;
 const bool INVERT_Z = false;
 
 // ===== PARAMETER GERAKAN NORMAL (AccelStepper) =====
-float baseMaxSpeed   = 600.0;
-float baseAccel      = 300.0;
-const float MIN_SCALED_SPEED = 150.0;
+float baseMaxSpeed   = 1000.0; // Disesuaikan untuk rasio 5.18
+float baseAccel      = 500.0;  // Disesuaikan untuk rasio 5.18
+const float MIN_SCALED_SPEED = 250.0;
 
 // ===== PARAMETER HOMING - POWER MODE =====
-const float HOMING_SPEED        = 75.0;
+const float HOMING_SPEED        = 130.0; // Disesuaikan untuk rasio 5.18 (sangat bertenaga & presisi)
 const int   STEP_PULSE_WIDTH    = 8;
 const unsigned long HOMING_TIMEOUT_MS = 30000UL;
 
@@ -497,8 +497,8 @@ void redoHoming() {
     // Gunakan kecepatan dan akselerasi lembut untuk mengangkat beban
     float oldSpeed = baseMaxSpeed;
     float oldAccel = baseAccel;
-    baseMaxSpeed = 250.0;
-    baseAccel    = 150.0;
+    baseMaxSpeed = 400.0;
+    baseAccel    = 250.0;
     applyBaseStepperParams();
 
     moveToXYZ(currentX, currentY, -200.0);
