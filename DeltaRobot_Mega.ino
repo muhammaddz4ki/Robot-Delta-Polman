@@ -814,6 +814,17 @@ void handleCommand(String input) {
   else if (upper == "SET_AUTO OFF") { isAutonomous = false; sendResponse(F("[SYSTEM] Autonomous Mode OFF")); }
   else if (upper == "SET_PROX LOW")  { proxActiveState = LOW;  sendResponse(F("[SENSOR] Polaritas Sensor: Active LOW (NPN)")); }
   else if (upper == "SET_PROX HIGH") { proxActiveState = HIGH; sendResponse(F("[SENSOR] Polaritas Sensor: Active HIGH (PNP)")); }
+  else if (upper == "TEST_SENSOR" || upper == "CEK_SENSOR") {
+    int v_p  = digitalRead(proximityPin);
+    int v_p1 = digitalRead(proximityPin1);
+    int v_p2 = digitalRead(proximityPin2);
+    String diag = "[CEK_SENSOR] Pin 53 (Sensor A): " + String(v_p1) + 
+                  " | Pin 51 (Sensor B): " + String(v_p2) + 
+                  " | Pin 2: " + String(v_p) + 
+                  " | Polaritas Target: " + (proxActiveState == LOW ? "LOW (NPN)" : "HIGH (PNP)") +
+                  " | Auto Mode: " + (isAutonomous ? "ON" : "OFF");
+    sendResponse(diag);
+  }
   else if (upper == "STATUS") {
     String stat = "X:" + String(currentX,1) + ",Y:" + String(currentY,1) + ",Z:" + String(currentZ,1) +
                   ",Auto:" + (isAutonomous ? "ON" : "OFF") + ",Vakum:" + (relayState ? "ON" : "OFF") +
@@ -897,16 +908,21 @@ void loop() {
     lastProxDebounceTime = millis();
 
     if (isAutonomous && !isEmgActive()) {
+      if (stableProx1 != lastProx1State) {
+        sendResponse(String(F("[SENSOR A - PIN 53] ")) + (stableProx1 ? F("BENDA TERDETEKSI -> Menjalankan START_A") : F("Benda diangkat / Kosong")));
+      }
+      if (stableProx2 != lastProx2State) {
+        sendResponse(String(F("[SENSOR B - PIN 51] ")) + (stableProx2 ? F("BENDA TERDETEKSI -> Menjalankan START_B") : F("Benda diangkat / Kosong")));
+      }
+
       if (stableProx && !lastProxState && !autoRunRunning) {
         sendResponse(F("[PROXIMITY] Sensor terdeteksi -> AUTO RUN"));
         runStoredCoordinates();
       }
       if (stableProx1 && !lastProx1State && !autoRunRunning) {
-        sendResponse(F("[PROXIMITY 1] Sensor terdeteksi -> START_A"));
         runAutoSequence();
       }
       if (stableProx2 && !lastProx2State && !autoRunRunning) {
-        sendResponse(F("[PROXIMITY 2] Sensor terdeteksi -> START_B"));
         runAutoSequence1();
       }
     }
