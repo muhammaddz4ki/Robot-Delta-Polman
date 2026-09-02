@@ -41,23 +41,23 @@ const Landing = () => {
       </nav>
 
       {/* HERO SECTION */}
-      <header className="hero-section" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1200px', width: '100%', gap: '40px', zIndex: 2 }}>
-          <div className="hero-content" style={{ flex: '1', maxWidth: '550px', textAlign: 'left' }}>
+      <header className="hero-section">
+        <div className="hero-container-inner">
+          <div className="hero-content">
             <div className="badge-pill">Open Source Robotics</div>
-            <h1 className="hero-title">DELTA X <span>ROBOT OS</span></h1>
+            <h1 className="hero-title">DELTA ROBOT <span>POLMAN OS</span></h1>
             <p className="hero-subtitle">
-              Sistem operasi untuk robot Delta Open Source pertama di dunia. 
-              Dirancang untuk edukasi, penelitian, dan automasi industri ringan. Cepat, akurat, dan dapat disesuaikan.
+              Sistem operasi robot Delta paralel presisi tinggi Politeknik Manufaktur Negeri Bandung.
+              Dirancang untuk riset, edukasi, dan automasi industri Pick & Place berkecepatan tinggi.
             </p>
-            <div className="hero-actions" style={{ justifyContent: 'flex-start' }}>
+            <div className="hero-actions">
               <button className="primary-btn pulse-glow" onClick={() => navigate('/dashboard')}>
                 AKSES DASHBOARD <ArrowRight size={18} />
               </button>
             </div>
           </div>
 
-          <div className="hero-3d-container" style={{ flex: '1', maxWidth: '600px', height: '600px', position: 'relative' }}>
+          <div className="hero-3d-container">
             <Canvas camera={{ position: [250, 150, 250], fov: 45 }}>
               <ambientLight intensity={0.5} />
               <directionalLight position={[100, 200, 50]} intensity={1.5} />

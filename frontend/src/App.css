@@ -1017,3 +1017,183 @@ input[type=range]::-webkit-slider-runnable-track {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ==========================================================================
+   RESPONSIVE DESIGN SYSTEM (ALL DEVICES)
+   ========================================================================== */
+
+/* LAPTOPS & SMALL DESKTOPS (1025px - 1280px) */
+@media (max-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 260px 1fr 290px;
+    gap: 8px;
+    padding: 8px;
+  }
+  .topbar {
+    padding: 0 16px;
+  }
+}
+
+/* TABLETS & IPADS (769px - 1024px) */
+@media (max-width: 1024px) {
+  body, html {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  .dashboard-layout {
+    height: auto;
+    min-height: 100vh;
+  }
+  .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    gap: 12px;
+    padding: 12px;
+  }
+  .center-view {
+    order: 1;
+    min-height: 420px;
+    height: 420px;
+  }
+  .left-panel {
+    order: 2;
+    overflow-y: visible;
+  }
+  .right-panel {
+    order: 3;
+    overflow-y: visible;
+  }
+  .topbar {
+    height: auto;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+/* SMARTPHONES & MOBILE DEVICES (<= 768px) */
+@media (max-width: 768px) {
+  body, html {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  .dashboard-layout {
+    height: auto;
+    min-height: 100vh;
+  }
+  .topbar {
+    height: auto;
+    padding: 10px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .topbar .logo {
+    justify-content: space-between;
+    width: 100%;
+    font-size: 1.05rem;
+  }
+  .topbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    width: 100%;
+    gap: 6px;
+  }
+  .topbar-actions button, 
+  .topbar-actions .user-badge {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    padding: 8px;
+    gap: 10px;
+  }
+  .center-view {
+    order: 1;
+    min-height: 320px;
+    height: 320px;
+    border-radius: 8px;
+  }
+  .canvas-overlay-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 6px;
+  }
+  .canvas-top-left {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .view-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .view-presets button {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+  }
+  .left-panel {
+    order: 2;
+    padding: 10px;
+    overflow-y: visible;
+  }
+  .right-panel {
+    order: 3;
+    padding: 10px;
+    overflow-y: visible;
+  }
+  .clean-btn-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .clean-btn {
+    padding: 8px 4px;
+    font-size: 0.72rem;
+  }
+  .jog-circle-wrapper {
+    transform: scale(0.9);
+  }
+  .routine-steps-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 4px;
+  }
+  .routine-step-btn {
+    padding: 6px 2px !important;
+    font-size: 0.68rem !important;
+  }
+  .terminal-box {
+    max-height: 200px;
+  }
+}
+
+/* EXTRA SMALL SCREENS (<= 480px) */
+@media (max-width: 480px) {
+  .dashboard-grid {
+    padding: 6px;
+    gap: 8px;
+  }
+  .section-card {
+    padding: 10px;
+  }
+  .clean-btn-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .clean-btn {
+    padding: 7px 2px;
+    font-size: 0.7rem;
+  }
+  .center-view {
+    min-height: 280px;
+    height: 280px;
+  }
+}
