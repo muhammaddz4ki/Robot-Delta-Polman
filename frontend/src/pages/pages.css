@@ -614,9 +614,9 @@
     min-height: auto;
   }
   .hero-container-inner {
-    flex-direction: column-reverse;
+    flex-direction: column;
     text-align: center;
-    gap: 20px;
+    gap: 24px;
   }
   .hero-content {
     max-width: 100%;
