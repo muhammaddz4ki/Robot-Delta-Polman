@@ -27,7 +27,7 @@ const int limitZ = 41;
 const int proximityPin  = 2;
 const int proximityPin1 = 53;
 const int proximityPin2 = 51;
-int proxActiveState     = LOW; // Default LOW (NPN Inductive/Optical Sensor NO - saat mendeteksi benda pin tertarik ke GND)
+const int PROX_ACTIVE_STATE = HIGH; // Sensor aktif HIGH saat mendeteksi benda (sesuai hardware terpasang)
 
 // ===== PIN RELAY & EMERGENCY (EMG) =====
 const int relayPin = 12;  // Dinamo Hisap / Suction Cup Relay Pin D12
@@ -810,10 +810,17 @@ void handleCommand(String input) {
       sendResponse("[MOTOR] Akselerasi diatur: " + String(acc, 0));
     }
   }
-  else if (upper == "SET_AUTO ON")  { isAutonomous = true; sendResponse(F("[SYSTEM] Autonomous Mode ON")); }
-  else if (upper == "SET_AUTO OFF") { isAutonomous = false; sendResponse(F("[SYSTEM] Autonomous Mode OFF")); }
-  else if (upper == "SET_PROX LOW")  { proxActiveState = LOW;  sendResponse(F("[SENSOR] Polaritas Sensor: Active LOW (NPN)")); }
-  else if (upper == "SET_PROX HIGH") { proxActiveState = HIGH; sendResponse(F("[SENSOR] Polaritas Sensor: Active HIGH (PNP)")); }
+  else if (upper == "SET_AUTO ON")  { 
+    isAutonomous = true; 
+    lastProxState  = (digitalRead(proximityPin)  == PROX_ACTIVE_STATE);
+    lastProx1State = (digitalRead(proximityPin1) == PROX_ACTIVE_STATE);
+    lastProx2State = (digitalRead(proximityPin2) == PROX_ACTIVE_STATE);
+    sendResponse(F("[SYSTEM] Autonomous Mode ON (Sensor Aktif)")); 
+  }
+  else if (upper == "SET_AUTO OFF") { 
+    isAutonomous = false; 
+    sendResponse(F("[SYSTEM] Autonomous Mode OFF (Sensor Nonaktif)")); 
+  }
   else if (upper == "TEST_SENSOR" || upper == "CEK_SENSOR") {
     int v_p  = digitalRead(proximityPin);
     int v_p1 = digitalRead(proximityPin1);
@@ -821,7 +828,6 @@ void handleCommand(String input) {
     String diag = "[CEK_SENSOR] Pin 53 (Sensor A): " + String(v_p1) + 
                   " | Pin 51 (Sensor B): " + String(v_p2) + 
                   " | Pin 2: " + String(v_p) + 
-                  " | Polaritas Target: " + (proxActiveState == LOW ? "LOW (NPN)" : "HIGH (PNP)") +
                   " | Auto Mode: " + (isAutonomous ? "ON" : "OFF");
     sendResponse(diag);
   }
@@ -829,8 +835,8 @@ void handleCommand(String input) {
     String stat = "X:" + String(currentX,1) + ",Y:" + String(currentY,1) + ",Z:" + String(currentZ,1) +
                   ",Auto:" + (isAutonomous ? "ON" : "OFF") + ",Vakum:" + (relayState ? "ON" : "OFF") +
                   ",EMG:" + (isEmgActive() ? "ACTIVE" : "OK") + ",Points:" + String(getPointCount()) +
-                  ",P1:" + (digitalRead(proximityPin1) == proxActiveState ? "1" : "0") +
-                  ",P2:" + (digitalRead(proximityPin2) == proxActiveState ? "1" : "0");
+                  ",P1:" + String(digitalRead(proximityPin1)) +
+                  ",P2:" + String(digitalRead(proximityPin2));
     sendResponse("[STATUS] " + stat);
   }
   else {
@@ -897,39 +903,29 @@ void loop() {
   static unsigned long lastProxDebounceTime = 0;
   static bool stableProx = false, stableProx1 = false, stableProx2 = false;
 
-  bool rawProx  = (digitalRead(proximityPin)  == proxActiveState);
-  bool rawProx1 = (digitalRead(proximityPin1) == proxActiveState);
-  bool rawProx2 = (digitalRead(proximityPin2) == proxActiveState);
+  // 2. Baca Sensor Proximity Otomasi (Langsung, Responsif & Andal)
+  bool proxNow  = (digitalRead(proximityPin)  == PROX_ACTIVE_STATE);
+  bool prox1Now = (digitalRead(proximityPin1) == PROX_ACTIVE_STATE);
+  bool prox2Now = (digitalRead(proximityPin2) == PROX_ACTIVE_STATE);
 
-  if (millis() - lastProxDebounceTime >= 30) {
-    stableProx  = rawProx;
-    stableProx1 = rawProx1;
-    stableProx2 = rawProx2;
-    lastProxDebounceTime = millis();
-
-    if (isAutonomous && !isEmgActive()) {
-      if (stableProx1 != lastProx1State) {
-        sendResponse(String(F("[SENSOR A - PIN 53] ")) + (stableProx1 ? F("BENDA TERDETEKSI -> Menjalankan START_A") : F("Benda diangkat / Kosong")));
-      }
-      if (stableProx2 != lastProx2State) {
-        sendResponse(String(F("[SENSOR B - PIN 51] ")) + (stableProx2 ? F("BENDA TERDETEKSI -> Menjalankan START_B") : F("Benda diangkat / Kosong")));
-      }
-
-      if (stableProx && !lastProxState && !autoRunRunning) {
-        sendResponse(F("[PROXIMITY] Sensor terdeteksi -> AUTO RUN"));
-        runStoredCoordinates();
-      }
-      if (stableProx1 && !lastProx1State && !autoRunRunning) {
-        runAutoSequence();
-      }
-      if (stableProx2 && !lastProx2State && !autoRunRunning) {
-        runAutoSequence1();
-      }
+  if (isAutonomous && !isEmgActive() && !autoRunRunning) {
+    if (prox1Now && !lastProx1State) {
+      sendResponse(F("[PROXIMITY 1] Sensor A (Pin 53) terdeteksi -> START_A"));
+      runAutoSequence();
     }
-    lastProxState = stableProx;
-    lastProx1State = stableProx1;
-    lastProx2State = stableProx2;
+    else if (prox2Now && !lastProx2State) {
+      sendResponse(F("[PROXIMITY 2] Sensor B (Pin 51) terdeteksi -> START_B"));
+      runAutoSequence1();
+    }
+    else if (proxNow && !lastProxState) {
+      sendResponse(F("[PROXIMITY] Sensor (Pin 2) terdeteksi -> AUTO RUN"));
+      runStoredCoordinates();
+    }
   }
+
+  lastProxState  = proxNow;
+  lastProx1State = prox1Now;
+  lastProx2State = prox2Now;
 
   // 3. Eksekusi Langkah Stepper
   if (!isEmgActive()) {

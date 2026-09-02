@@ -982,32 +982,17 @@ const Dashboard = () => {
                 </button>
               </div>
 
-              {/* Sensor Polarity & Diagnostics */}
+              {/* Sensor Diagnostics */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '6px', borderTop: '1px solid var(--border-color)', fontSize: '0.72rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Sensor Proximity (A:D53, B:D51):</span>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button
-                    className="clean-btn"
-                    style={{ padding: '2px 6px', fontSize: '0.68rem' }}
-                    title="Uji bacaan sinyal voltase fisik pin sensor saat ini"
-                    onClick={() => sendCommand('TEST_SENSOR')}
-                  >
-                    CEK SENSOR
-                  </button>
-                  <button
-                    className="clean-btn"
-                    style={{ padding: '2px 6px', fontSize: '0.68rem' }}
-                    title="Klik untuk ubah polaritas sensor jika menggunakan sensor tipe NPN atau PNP"
-                    onClick={() => {
-                      const nextPol = proxPolarity === 'LOW' ? 'HIGH' : 'LOW';
-                      setProxPolarity(nextPol);
-                      localStorage.setItem('delta_prox_pol', nextPol);
-                      sendCommand(`SET_PROX ${nextPol}`);
-                    }}
-                  >
-                    {proxPolarity === 'LOW' ? 'NPN (LOW)' : 'PNP (HIGH)'}
-                  </button>
-                </div>
+                <button
+                  className="clean-btn"
+                  style={{ padding: '2px 8px', fontSize: '0.68rem' }}
+                  title="Uji status deteksi pin sensor fisik saat ini"
+                  onClick={() => sendCommand('TEST_SENSOR')}
+                >
+                  CEK SENSOR
+                </button>
               </div>
 
               {isAutonomous && (
