@@ -81,28 +81,33 @@ const Landing = () => {
         </div>
         <div className="about-grid" style={{ marginTop: '40px' }}>
           <div className="about-text" style={{ textAlign: 'justify' }}>
-            <h3>Mengapa Delta Robot?</h3>
+            <h3>Mengapa Delta Robot Polman?</h3>
             <p>
-              Delta Robot adalah tipe robot paralel yang terdiri dari tiga lengan bersendi yang terhubung 
-              ke dasar universal di atas ruang kerja. Desain mekanis unik ini memusatkan massa motor di bagian atas, 
-              membuat lengan robot sangat ringan namun kokoh. 
+              Delta Robot adalah tipe robot paralel berkecepatan tinggi yang memusatkan massa motor di pelat dasar atas, 
+              menghilangkan beban inersia motor pada lengan artikulasi. Dirancang dan dikembangkan di Politeknik Manufaktur Negeri Bandung (POLMAN), 
+              robot ini menggunakan aktuator stepper terkalibrasi khusus untuk automasi *Pick & Place* industri dengan keandalan maksimal.
             </p>
             <p>
-              Hasil dari desain ini adalah tingkat akselerasi dan kecepatan ekstrem tanpa mengorbankan kepresisian ruang. Proyek Delta X kami lahir dari visi untuk menjadikan automasi tingkat industri lebih mudah diakses, direplikasi, dan dikembangkan oleh institusi maupun pabrikan kecil di seluruh dunia.
+              Dilengkapi dengan aktuator **Hanpose Planetary Gearbox 5.18:1**, driver mikro-langkah DRV8825, dinamo hisap vakum berdaya tinggi, 
+              serta sensor pendeteksi barang ganda (*Dual Optical/Inductive Proximity*) untuk menjalankan siklus penyortiran barang A dan B secara otonom tanpa campur tangan operator.
             </p>
           </div>
           <div className="about-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
             <div className="stat-box" style={{ alignItems: 'center', textAlign: 'center' }}>
-              <span className="stat-value">1/16</span>
-              <span className="stat-label">Microstepping</span>
+              <span className="stat-value">5.18:1</span>
+              <span className="stat-label">Planetary Gear Ratio</span>
+            </div>
+            <div className="stat-box" style={{ alignItems: 'center', textAlign: 'center' }}>
+              <span className="stat-value">2.88</span>
+              <span className="stat-label">Steps / Derajat</span>
             </div>
             <div className="stat-box" style={{ alignItems: 'center', textAlign: 'center' }}>
               <span className="stat-value">150<small>mm</small></span>
-              <span className="stat-label">Radius Kerja</span>
+              <span className="stat-label">Radius Workspace</span>
             </div>
-            <div className="stat-box" style={{ alignItems: 'center', textAlign: 'center', gridColumn: 'span 2' }}>
-              <span className="stat-value">3</span>
-              <span className="stat-label">Derajat Kebebasan (DOF)</span>
+            <div className="stat-box" style={{ alignItems: 'center', textAlign: 'center' }}>
+              <span className="stat-value">3 DOF</span>
+              <span className="stat-label">Paralel Kinematika</span>
             </div>
           </div>
         </div>
@@ -111,7 +116,7 @@ const Landing = () => {
       {/* DASHBOARD FEATURES */}
       <section id="features" className="capabilities-section fade-in-up">
         <div className="section-header center">
-          <h2>KEUNGGULAN DASHBOARD</h2>
+          <h2>FITUR KONTROL & DASHBOARD</h2>
           <p>Kontrol penuh atas robot Delta Anda melalui antarmuka web interaktif tanpa perlu instalasi perangkat lunak tambahan.</p>
           <div className="separator-line"></div>
         </div>
@@ -120,22 +125,22 @@ const Landing = () => {
           <div className="feature-card hover-lift">
             <div className="icon-wrapper"><Monitor size={28} /></div>
             <h3>Live 3D Digital Twin</h3>
-            <p>Visualisasi pergerakan robot secara *real-time* di dalam browser. Pantau posisi dan orientasi mesin secara presisi tanpa harus berada di lokasi fisik.</p>
+            <p>Visualisasi kinematika robot secara *real-time* di dalam browser. Tiga lengan virtual bergerak presisi mengikuti posisi koordinat fisik robot.</p>
           </div>
           <div className="feature-card hover-lift">
             <div className="icon-wrapper"><Sliders size={28} /></div>
-            <h3>Kontrol Koordinat Akurat</h3>
-            <p>Kendalikan pergerakan X, Y, Z dan status *end-effector* (vakum/gripper) dengan mudah melalui panel antarmuka yang sangat responsif.</p>
+            <h3>Dual Profile (A & B)</h3>
+            <p>Manajemen koordinat Pick & Place terpisah untuk barang A dan B. Simpan template tak terbatas ke database MySQL dengan satu klik.</p>
           </div>
           <div className="feature-card hover-lift">
-            <div className="icon-wrapper"><Terminal size={28} /></div>
-            <h3>Terminal Interaktif</h3>
-            <p>Kirim perintah G-Code secara langsung dan pantau log pergerakan serta respons serial secara *live* untuk keperluan *debugging* dan kalibrasi.</p>
+            <div className="icon-wrapper"><Zap size={28} /></div>
+            <h3>Mode Otonom Dual-Sensor</h3>
+            <p>Sistem deteksi cerdas berbasis sensor proximity (Pin 53 untuk Item A, Pin 51 untuk Item B). Robot otomatis memilah saat barang tiba.</p>
           </div>
           <div className="feature-card hover-lift">
             <div className="icon-wrapper"><Link size={28} /></div>
-            <h3>Koneksi Nirkabel & Serial</h3>
-            <p>Terhubung langsung via ESP32 Wi-Fi Direct maupun Serial Port dengan latensi komunikasi nyaris nol.</p>
+            <h3>Koneksi ESP32 Wi-Fi & USB</h3>
+            <p>Dukungan komunikasi ganda: REST API nirkabel via ESP32 Wi-Fi Direct (192.168.4.1) serta koneksi kabel Serial USB 115200 baud.</p>
           </div>
         </div>
       </section>
@@ -143,21 +148,21 @@ const Landing = () => {
       {/* CAPABILITIES / USE CASES */}
       <section id="capabilities" className="capabilities-section">
         <div className="section-header center">
-          <h2>FOKUS UTAMA: PICK & PLACE</h2>
-          <p>Dirancang khusus untuk memindahkan dan memilah barang dengan presisi dan kecepatan tinggi.</p>
+          <h2>FOKUS: HIGH-SPEED PICK & PLACE</h2>
+          <p>Dirancang khusus untuk automasi pemindahan dan penyortiran barang presisi di lini produksi manufaktur.</p>
           <div className="separator-line"></div>
         </div>
         
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '40px' }}>
-          <div className="feature-card hover-lift" style={{ maxWidth: '700px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="feature-card hover-lift" style={{ maxWidth: '750px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="icon-wrapper" style={{ width: '80px', height: '80px', marginBottom: '20px' }}>
               <Box size={40} />
             </div>
-            <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>High-Speed Sorting</h3>
+            <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>Automasi Pemilahan Vakum Industri</h3>
             <p style={{ fontSize: '16px', lineHeight: '1.8', color: '#aaa' }}>
-              Memanfaatkan kinematika paralel, sistem Delta OS kami memastikan komponen atau barang 
-              dapat diambil dan diletakkan kembali dengan deviasi margin yang sangat rendah. 
-              Sangat ideal dipadukan dengan modul hisap vakum (Suction Cup) maupun capit presisi (Gripper) untuk lini perakitan otomatisasi Anda.
+              Menggunakan dinamo hisap vakum elektrik yang dikontrol via relay optocoupler D12. 
+              Sistem trajektori cerdas memastikan robot mengambil barang, melakukan homing transit tanpa resiko gesekan mekanis, 
+              lalu meletakkan barang di wadah drop tujuan dengan toleransi akurasi sub-milimeter.
             </p>
           </div>
         </div>
@@ -166,31 +171,31 @@ const Landing = () => {
       {/* TECH STACK ARCHITECTURE */}
       <section id="tech" className="tech-section">
         <div className="section-header center">
-          <h2>ARSITEKTUR TEKNOLOGI</h2>
-          <p>Sistem berlapis untuk menjamin komunikasi yang stabil dari antarmuka web hingga pergerakan motor.</p>
+          <h2>SPESIFIKASI & ARSITEKTUR TEKNIK</h2>
+          <p>Arsitektur komputasi terdistribusi untuk menjamin keandalan kontrol real-time tanpa latensi.</p>
           <div className="separator-line"></div>
         </div>
         
         <div className="workflow-diagram" style={{ marginTop: '40px' }}>
           <div className="workflow-node">
             <Layers className="node-icon" />
-            <h4>Web Dashboard</h4>
-            <span>React.js + Three.js</span>
-            <p>Antarmuka visualisasi 3D Real-time</p>
+            <h4>Web Frontend</h4>
+            <span>React 18 + Three.js</span>
+            <p>Visualisasi 3D, Template Koordinat & Terminal</p>
           </div>
           <ArrowRight className="workflow-arrow" />
           <div className="workflow-node">
             <Activity className="node-icon" />
-            <h4>Backend API</h4>
+            <h4>Backend Server</h4>
             <span>Node.js Express + MySQL</span>
-            <p>Otentikasi, Database & Manajemen Profil</p>
+            <p>Manajemen Akun, Database Template & Telemetri</p>
           </div>
           <ArrowRight className="workflow-arrow" />
           <div className="workflow-node">
             <Cpu className="node-icon" />
-            <h4>Firmware & Gateway</h4>
-            <span>Arduino Mega + ESP32 Wi-Fi</span>
-            <p>Inverse Kinematics, Kontrol Stepper & REST API</p>
+            <h4>Dual Microcontroller</h4>
+            <span>Arduino Mega + ESP32</span>
+            <p>Inverse Kinematics 2560 & Wireless Gateway</p>
           </div>
         </div>
 
@@ -198,15 +203,15 @@ const Landing = () => {
           <div className="feature-card hover-lift" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
             <Target className="spec-icon" size={36} />
             <div>
-              <h4 style={{ fontSize: '18px', marginBottom: '10px', color: 'var(--accent-color)' }}>Presisi Kinematik Trigonometri</h4>
-              <p style={{ color: '#aaa', lineHeight: '1.6' }}>Perhitungan sudut Inverse Kinematics dilakukan secara native di dalam board Arduino Mega 2560 untuk meminimalkan *delay* eksekusi gerak.</p>
+              <h4 style={{ fontSize: '18px', marginBottom: '10px', color: 'var(--accent-color)' }}>Motor Hanpose 17HS4401S-PG5.18</h4>
+              <p style={{ color: '#aaa', lineHeight: '1.6' }}>Stepper dengan Planetary Gearbox internal rasio 5.18:1. Menghasilkan torsi penahan tinggi, resolusi 2.88 steps per derajat, serta bebas slip pada akselerasi tinggi.</p>
             </div>
           </div>
           <div className="feature-card hover-lift" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
             <Zap className="spec-icon" size={36} />
             <div>
-              <h4 style={{ fontSize: '18px', marginBottom: '10px', color: 'var(--accent-color)' }}>Sistem Motor Stepper & Belt</h4>
-              <p style={{ color: '#aaa', lineHeight: '1.6' }}>Menggunakan NEMA 17 Stepper Motors dipadukan dengan timing belt GT2 untuk distribusi gaya yang merata, menghasilkan pergerakan minim backlash.</p>
+              <h4 style={{ fontSize: '18px', marginBottom: '10px', color: 'var(--accent-color)' }}>Sistem Keamanan Hardware & Software</h4>
+              <p style={{ color: '#aaa', lineHeight: '1.6' }}>Dilengkapi saklar fisik Emergency Stop (NC Switch D31) yang seketika mengunci motor dalam holding torque tanpa memutus vakum objek, ditambah interrupt darurat via web.</p>
             </div>
           </div>
         </div>
@@ -216,8 +221,8 @@ const Landing = () => {
       <footer className="landing-footer">
         <div className="footer-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '10px' }}>
           <div className="footer-brand">
-            <h3 style={{ fontSize: '20px' }}>DELTA OS</h3>
-            <p style={{ fontSize: '14px', marginTop: '5px' }}>Sistem Kontrol Industri Terbuka</p>
+            <h3 style={{ fontSize: '20px' }}>DELTA ROBOT POLMAN</h3>
+            <p style={{ fontSize: '14px', marginTop: '5px' }}>Politeknik Manufaktur Negeri Bandung - Majalengka</p>
           </div>
           <div className="separator-line" style={{ width: '40px', height: '2px', margin: '10px 0' }}></div>
           <div className="footer-links">

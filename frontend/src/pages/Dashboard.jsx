@@ -203,6 +203,7 @@ const Dashboard = () => {
   const [newTemplateName, setNewTemplateName] = useState("");
 
   const [isAutonomous, setIsAutonomous] = useState(() => localStorage.getItem('delta_auto_mode') === 'true');
+  const [proxPolarity, setProxPolarity] = useState(() => localStorage.getItem('delta_prox_pol') || 'LOW');
   const [relayActive, setRelayActive] = useState(false);
   const [isKeyJogActive, setIsKeyJogActive] = useState(() => {
     const s = localStorage.getItem('delta_key_jog');
@@ -980,6 +981,30 @@ const Dashboard = () => {
                   BUANG (OFF)
                 </button>
               </div>
+
+              {/* Sensor Polarity & Status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '6px', borderTop: '1px solid var(--border-color)', fontSize: '0.72rem' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Sensor Proximity (A:D53, B:D51):</span>
+                <button
+                  className="clean-btn"
+                  style={{ padding: '2px 6px', fontSize: '0.68rem' }}
+                  title="Klik untuk ubah polaritas sensor jika menggunakan sensor tipe NPN atau PNP"
+                  onClick={() => {
+                    const nextPol = proxPolarity === 'LOW' ? 'HIGH' : 'LOW';
+                    setProxPolarity(nextPol);
+                    localStorage.setItem('delta_prox_pol', nextPol);
+                    sendCommand(`SET_PROX ${nextPol}`);
+                  }}
+                >
+                  {proxPolarity === 'LOW' ? 'NPN (LOW)' : 'PNP (HIGH)'}
+                </button>
+              </div>
+
+              {isAutonomous && (
+                <div style={{ background: 'rgba(0, 255, 136, 0.08)', border: '1px solid rgba(0, 255, 136, 0.25)', borderRadius: '4px', padding: '6px', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                  <strong style={{ color: 'var(--accent-color)' }}>Mode Otomatis Aktif:</strong> Letakkan benda di depan Sensor A (Pin 53) untuk START A, atau Sensor B (Pin 51) untuk START B.
+                </div>
+              )}
             </div>
           </div>
 
