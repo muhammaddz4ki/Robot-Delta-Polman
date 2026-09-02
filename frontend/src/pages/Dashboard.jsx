@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Canvas, useLoader, useThree, useFrame } from '@react-three/fiber';
 import { Grid, Sphere, Center, CameraControls, Html } from '@react-three/drei';
 import { STLLoader } from 'three-stdlib';
-import { Wifi, WifiOff, Radio, RefreshCw, X, Server, UploadCloud, ExternalLink } from 'lucide-react';
+import { Wifi, WifiOff, Radio, RefreshCw, X, Server, UploadCloud, ExternalLink, Clock, Download, History, BarChart3, TrendingUp, CheckCircle, RotateCcw } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../ThemeContext';
 import DeltaRobotDigitalTwin from '../components/DeltaRobotDigitalTwin';
@@ -237,6 +237,45 @@ const Dashboard = () => {
     } catch (_) {}
     return { x: -1, y: -20, z: 0 };
   });
+
+  // LIVE CYCLE TIME METER & PRODUCTION TELEMETRY
+  const [isCycleRunning, setIsCycleRunning] = useState(false);
+  const [runningCycleProfile, setRunningCycleProfile] = useState('');
+  const [liveCycleDuration, setLiveCycleDuration] = useState(0);
+  const [lastCycleDuration, setLastCycleDuration] = useState(() => {
+    const s = localStorage.getItem('delta_last_cycle');
+    return s ? parseFloat(s) : 0;
+  });
+  const [cycleCountA, setCycleCountA] = useState(() => {
+    const s = localStorage.getItem('delta_count_a');
+    return s ? parseInt(s, 10) : 0;
+  });
+  const [cycleCountB, setCycleCountB] = useState(() => {
+    const s = localStorage.getItem('delta_count_b');
+    return s ? parseInt(s, 10) : 0;
+  });
+  const [cycleHistory, setCycleHistory] = useState(() => {
+    try {
+      const s = localStorage.getItem('delta_cycle_history');
+      if (s) return JSON.parse(s);
+    } catch (_) {}
+    return [];
+  });
+  const [isCycleHistoryModalOpen, setIsCycleHistoryModalOpen] = useState(false);
+
+  // Statistics calculation
+  const totalCycles = cycleCountA + cycleCountB;
+  const avgCycleDuration = useMemo(() => {
+    if (cycleHistory.length === 0) return lastCycleDuration;
+    const sum = cycleHistory.reduce((acc, curr) => acc + (Number(curr.duration) || 0), 0);
+    return (sum / cycleHistory.length).toFixed(2);
+  }, [cycleHistory, lastCycleDuration]);
+
+  const estimatedPPM = useMemo(() => {
+    const dur = parseFloat(avgCycleDuration);
+    if (!dur || dur <= 0) return '0.0';
+    return (60 / dur).toFixed(1);
+  }, [avgCycleDuration]);
 
   // Keyboard Jogging Listener
   useEffect(() => {
@@ -773,22 +812,125 @@ const Dashboard = () => {
     setLogs(prev => [...prev, `[Z-OFFSET] Seluruh titik Z disesuaikan (${delta > 0 ? '+' : ''}${delta} mm). Klik 'Terapkan Semua' untuk sinkronisasi ke robot.`]);
   };
 
-  const handleStartA = async () => {
-    setLogs(prev => [...prev, `[SYSTEM] Sinkronisasi Profil A -> Menjalankan START A...`]);
-    await sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`);
-    await sleep(100);
-    await sendCommand(`SET_A_DROP ${dropA.x} ${dropA.y} ${dropA.z}`);
-    await sleep(100);
-    await sendCommand('STARTA');
+  const executeTimedSequence = async (profileKey) => {
+    if (isCycleRunning) return;
+    const profileLabel = profileKey === 'A' ? 'Profil A' : 'Profil B';
+    setIsCycleRunning(true);
+    setRunningCycleProfile(profileLabel);
+    setLiveCycleDuration(0);
+    const startTs = Date.now();
+
+    const intervalId = setInterval(() => {
+      setLiveCycleDuration(parseFloat(((Date.now() - startTs) / 1000).toFixed(2)));
+    }, 50);
+
+    try {
+      if (profileKey === 'A') {
+        setLogs(prev => [...prev, `[CYCLE] Memulai siklus ${profileLabel}...`]);
+        await sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`);
+        await sleep(100);
+        await sendCommand(`SET_A_DROP ${dropA.x} ${dropA.y} ${dropA.z}`);
+        await sleep(100);
+        await sendCommand('STARTA');
+      } else {
+        setLogs(prev => [...prev, `[CYCLE] Memulai siklus ${profileLabel}...`]);
+        await sendCommand(`SET_B_PICK ${pickB.x} ${pickB.y} ${pickB.z}`);
+        await sleep(100);
+        await sendCommand(`SET_B_DROP ${dropB.x} ${dropB.y} ${dropB.z}`);
+        await sleep(100);
+        await sendCommand('STARTB');
+      }
+
+      const dur = parseFloat(((Date.now() - startTs) / 1000).toFixed(2));
+      const ppmVal = (60 / dur).toFixed(1);
+      setLastCycleDuration(dur);
+      localStorage.setItem('delta_last_cycle', dur);
+
+      if (profileKey === 'A') {
+        setCycleCountA(prev => {
+          const next = prev + 1;
+          localStorage.setItem('delta_count_a', next);
+          return next;
+        });
+      } else {
+        setCycleCountB(prev => {
+          const next = prev + 1;
+          localStorage.setItem('delta_count_b', next);
+          return next;
+        });
+      }
+
+      const newRecord = {
+        id: Date.now(),
+        profile: profileLabel,
+        duration: dur,
+        ppm: ppmVal,
+        timestamp: new Date().toLocaleTimeString(),
+        date: new Date().toLocaleDateString('id-ID'),
+        status: 'SUCCESS'
+      };
+
+      setCycleHistory(prev => {
+        const next = [newRecord, ...prev.slice(0, 99)];
+        localStorage.setItem('delta_cycle_history', JSON.stringify(next));
+        return next;
+      });
+
+      setLogs(prev => [...prev, `[TELEMETRY] Siklus ${profileLabel} selesai. Durasi: ${dur}s | Throughput: ${ppmVal} PPM`]);
+    } catch (err) {
+      setLogs(prev => [...prev, `[CYCLE ERROR] ${err.message}`]);
+    } finally {
+      clearInterval(intervalId);
+      setIsCycleRunning(false);
+      setLiveCycleDuration(0);
+    }
   };
 
-  const handleStartB = async () => {
-    setLogs(prev => [...prev, `[SYSTEM] Sinkronisasi Profil B -> Menjalankan START B...`]);
-    await sendCommand(`SET_B_PICK ${pickB.x} ${pickB.y} ${pickB.z}`);
-    await sleep(100);
-    await sendCommand(`SET_B_DROP ${dropB.x} ${dropB.y} ${dropB.z}`);
-    await sleep(100);
-    await sendCommand('STARTB');
+  const handleStartA = () => executeTimedSequence('A');
+  const handleStartB = () => executeTimedSequence('B');
+
+  const exportCycleReportCSV = () => {
+    if (cycleHistory.length === 0) {
+      alert('Belum ada data riwayat siklus untuk diekspor!');
+      return;
+    }
+
+    const headers = ['No', 'Tanggal', 'Waktu', 'Profil', 'Durasi_Detik', 'Throughput_PPM', 'Status'];
+    const rows = cycleHistory.map((item, idx) => [
+      idx + 1,
+      `"${item.date || ''}"`,
+      `"${item.timestamp || ''}"`,
+      `"${item.profile || ''}"`,
+      item.duration,
+      item.ppm,
+      item.status
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + 
+      [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Laporan_Produksi_Robot_Delta_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setLogs(prev => [...prev, `[TELEMETRY] Laporan CSV riwayat produksi berhasil diunduh.`]);
+  };
+
+  const resetCycleCounter = () => {
+    if (window.confirm('Apakah Anda yakin ingin me-reset statistik produksi dan riwayat siklus?')) {
+      setCycleCountA(0);
+      setCycleCountB(0);
+      setLastCycleDuration(0);
+      setCycleHistory([]);
+      localStorage.removeItem('delta_count_a');
+      localStorage.removeItem('delta_count_b');
+      localStorage.removeItem('delta_last_cycle');
+      localStorage.removeItem('delta_cycle_history');
+      setLogs(prev => [...prev, '[TELEMETRY] Counter dan riwayat siklus telah di-reset.']);
+    }
   };
 
   return (
@@ -1003,7 +1145,81 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Card 3: Jogging Controls (Absolute & Step Relative) */}
+          {/* Card 3: Live Cycle Time Meter & Production Telemetry */}
+          <div className="section-card">
+            <div className="section-title">
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Clock size={14} style={{ color: 'var(--accent-color)' }} />
+                CYCLE TIME & TELEMETRI
+              </span>
+              <span 
+                className={`slider-value-chip ${isCycleRunning ? 'pulse-glow' : ''}`} 
+                style={{ 
+                  margin: 0, 
+                  padding: '2px 8px', 
+                  fontSize: '0.68rem',
+                  background: isCycleRunning ? 'rgba(0, 255, 136, 0.2)' : 'var(--card-bg)',
+                  color: isCycleRunning ? 'var(--accent-color)' : 'var(--text-muted)'
+                }}
+              >
+                {isCycleRunning ? `RUNNING (${liveCycleDuration}s)` : 'STANDBY'}
+              </span>
+            </div>
+
+            {/* Metrics 3-Col Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginTop: '6px' }}>
+              <div style={{ padding: '8px 4px', textAlign: 'center', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-color)', fontFamily: 'Space Grotesk' }}>
+                  {isCycleRunning ? `${liveCycleDuration}s` : (lastCycleDuration > 0 ? `${lastCycleDuration}s` : '-')}
+                </span>
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block' }}>Siklus Terakhir</span>
+              </div>
+              <div style={{ padding: '8px 4px', textAlign: 'center', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'Space Grotesk' }}>
+                  {avgCycleDuration > 0 ? `${avgCycleDuration}s` : '-'}
+                </span>
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block' }}>Rata-rata</span>
+              </div>
+              <div style={{ padding: '8px 4px', textAlign: 'center', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f59e0b', fontFamily: 'Space Grotesk' }}>
+                  {estimatedPPM}
+                </span>
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block' }}>PPM Throughput</span>
+              </div>
+            </div>
+
+            {/* Counter Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 10px', marginTop: '6px', fontSize: '0.72rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Item Diproses:</span>
+              <div style={{ display: 'flex', gap: '8px', fontWeight: 600 }}>
+                <span style={{ color: 'var(--text-color)' }}>A: <strong style={{ color: 'var(--accent-color)' }}>{cycleCountA}</strong></span>
+                <span style={{ color: 'var(--text-color)' }}>B: <strong style={{ color: 'var(--accent-color)' }}>{cycleCountB}</strong></span>
+                <span style={{ color: 'var(--text-color)' }}>Total: <strong style={{ color: '#38bdf8' }}>{totalCycles}</strong></span>
+              </div>
+            </div>
+
+            {/* Telemetry Actions */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '6px', marginTop: '6px' }}>
+              <button 
+                className="clean-btn primary" 
+                style={{ padding: '6px 10px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                onClick={() => setIsCycleHistoryModalOpen(true)}
+              >
+                <History size={13} />
+                Riwayat & Ekspor CSV
+              </button>
+              <button 
+                className="clean-btn" 
+                style={{ padding: '6px 8px', fontSize: '0.7rem' }}
+                title="Reset counter produksi"
+                onClick={resetCycleCounter}
+              >
+                <RotateCcw size={13} />
+              </button>
+            </div>
+          </div>
+
+          {/* Card 4: Jogging Controls (Absolute & Step Relative) */}
           <div className="section-card">
             <div className="section-title">
               <span>MANUAL JOGGING</span>
@@ -1884,6 +2100,111 @@ const Dashboard = () => {
                       <ExternalLink size={14} />
                     </a>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CYCLE HISTORY & CSV EXPORT MODAL */}
+      {isCycleHistoryModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsCycleHistoryModalOpen(false)}>
+          <div className="modal-content" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart3 size={18} style={{ color: 'var(--accent-color)' }} />
+                Riwayat Siklus & Telemetri Produksi
+              </div>
+              <button className="modal-close-btn" onClick={() => setIsCycleHistoryModalOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Summary KPIs */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-color)', fontFamily: 'Space Grotesk' }}>{totalCycles}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Total Siklus</div>
+                </div>
+                <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'Space Grotesk' }}>{lastCycleDuration > 0 ? `${lastCycleDuration}s` : '-'}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Durasi Terakhir</div>
+                </div>
+                <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#a855f7', fontFamily: 'Space Grotesk' }}>{avgCycleDuration > 0 ? `${avgCycleDuration}s` : '-'}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Rata-rata</div>
+                </div>
+                <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f59e0b', fontFamily: 'Space Grotesk' }}>{estimatedPPM}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Kapasitas (PPM)</div>
+                </div>
+              </div>
+
+              {/* History Table */}
+              <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--input-bg)' }}>
+                {cycleHistory.length === 0 ? (
+                  <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Belum ada riwayat siklus. Jalankan START A atau START B untuk mencatat data waktu siklus.
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '8px 10px' }}>#</th>
+                        <th style={{ padding: '8px 10px' }}>Waktu</th>
+                        <th style={{ padding: '8px 10px' }}>Profil</th>
+                        <th style={{ padding: '8px 10px' }}>Durasi</th>
+                        <th style={{ padding: '8px 10px' }}>Throughput</th>
+                        <th style={{ padding: '8px 10px' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cycleHistory.map((item, idx) => (
+                        <tr key={item.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                          <td style={{ padding: '8px 10px' }}>{item.timestamp}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 600, color: item.profile === 'Profil A' ? 'var(--accent-color)' : '#38bdf8' }}>{item.profile}</td>
+                          <td style={{ padding: '8px 10px', fontFamily: 'JetBrains Mono' }}>{item.duration}s</td>
+                          <td style={{ padding: '8px 10px', color: '#f59e0b' }}>{item.ppm} PPM</td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <span style={{ color: 'var(--accent-color)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              <CheckCircle size={12} /> {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                <button
+                  className="clean-btn danger"
+                  style={{ padding: '8px 14px', fontSize: '0.78rem' }}
+                  onClick={resetCycleCounter}
+                >
+                  Reset Semua Data
+                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="clean-btn"
+                    style={{ padding: '8px 14px', fontSize: '0.78rem' }}
+                    onClick={() => setIsCycleHistoryModalOpen(false)}
+                  >
+                    Tutup
+                  </button>
+                  <button
+                    className="clean-btn primary"
+                    style={{ padding: '8px 16px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={exportCycleReportCSV}
+                  >
+                    <Download size={14} />
+                    Unduh Laporan CSV
+                  </button>
                 </div>
               </div>
             </div>

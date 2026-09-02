@@ -628,6 +628,8 @@ void runStoredCoordinates() {
 // AUTO SEQUENCE A (POLMAN BANDUNG LOGIC)
 // =================================================================
 void runAutoSequence() {
+  unsigned long cycleStart = millis();
+  sendResponse(F("[CYCLE_START] START_A"));
   sendResponse(F("[START_A] Menjalankan urutan otomatis pick & place A..."));
   autoRunRunning = true;
 
@@ -673,6 +675,8 @@ void runAutoSequence() {
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
   safeDelay(200);
   
+  float durationSec = (millis() - cycleStart) / 1000.0;
+  sendResponse(String(F("[CYCLE_END] START_A Duration:")) + String(durationSec, 2) + F("s"));
   sendResponse(F("[START_A] Urutan otomatis SELESAI."));
   autoRunRunning = false;
 }
@@ -681,6 +685,8 @@ void runAutoSequence() {
 // AUTO SEQUENCE B (POLMAN BANDUNG LOGIC)
 // =================================================================
 void runAutoSequence1() {
+  unsigned long cycleStart = millis();
+  sendResponse(F("[CYCLE_START] START_B"));
   sendResponse(F("[START_B] Menjalankan urutan otomatis pick & place B..."));
   autoRunRunning = true;
 
@@ -726,6 +732,8 @@ void runAutoSequence1() {
   if (!moveToXYZ(DEFAULT_X, DEFAULT_Y, DEFAULT_Z))                 { autoRunRunning = false; return; }
   safeDelay(200);
 
+  float durationSec = (millis() - cycleStart) / 1000.0;
+  sendResponse(String(F("[CYCLE_END] START_B Duration:")) + String(durationSec, 2) + F("s"));
   sendResponse(F("[START_B] Urutan otomatis SELESAI."));
   autoRunRunning = false;
 }
