@@ -480,7 +480,7 @@ const Dashboard = () => {
     const token = localStorage.getItem('delta_token');
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/layout', {
+      const res = await fetch('/api/layout', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -499,7 +499,7 @@ const Dashboard = () => {
       const token = localStorage.getItem('delta_token');
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('http://localhost:5000/api/templates', { headers });
+      const res = await fetch('/api/templates', { headers });
       const data = await res.json();
       if (data.status === 'success' && Array.isArray(data.data)) {
         setTemplates(data.data);
@@ -543,7 +543,7 @@ const Dashboard = () => {
     const token = localStorage.getItem('delta_token');
     if (token) {
       try {
-        await fetch('http://localhost:5000/api/layout', {
+        await fetch('/api/layout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -607,7 +607,7 @@ const Dashboard = () => {
 
     const token = localStorage.getItem('delta_token');
     try {
-      const response = await fetch('http://localhost:5000/api/command', {
+      const response = await fetch('/api/command', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -677,7 +677,7 @@ const Dashboard = () => {
 
     const token = localStorage.getItem('delta_token');
     try {
-      const res = await fetch(`http://localhost:5000/api/templates/${newTemplateName}`, {
+      const res = await fetch(`/api/templates/${newTemplateName}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -696,7 +696,7 @@ const Dashboard = () => {
     if (!newTemplateName.trim()) return;
     const token = localStorage.getItem('delta_token');
     try {
-      const res = await fetch('http://localhost:5000/api/templates', {
+      const res = await fetch('/api/templates', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
