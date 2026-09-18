@@ -198,12 +198,16 @@ Komunikasi data serial berjalan pada baudrate **`115200 bps`** dengan terminasi 
 ## Struktur Direktori Proyek
 
 ```text
-Robot-Delta-Polman/
+Robot-Delta/
 ├── .gitignore                   # Konfigurasi ignoransi berkas Git
 ├── package.json                 # Konfigurasi Unified Workspace Runner (1 Terminal)
 ├── README.md                    # Dokumentasi komprehensif proyek (Dokumen ini)
-├── DeltaRobot_Mega.ino          # Firmware utama Arduino Mega 2560 (IK, Homing & Motion Control)
-├── DeltaRobot_ESP32.ino         # Firmware IoT Gateway ESP32 (Wi-Fi, REST API, OTA Update)
+│
+├── firmware/                    # Firmware Mikrokontroler (Standar Arduino IDE)
+│   ├── DeltaRobot_Mega/
+│   │   └── DeltaRobot_Mega.ino  # Firmware utama Arduino Mega 2560 (IK, Homing & Motion Control)
+│   └── DeltaRobot_ESP32/
+│       └── DeltaRobot_ESP32.ino # Firmware IoT Gateway ESP32 (Wi-Fi, REST API, OTA Update)
 │
 ├── Backend/                     # Layanan Backend Node.js & Express
 │   ├── .env.example             # Contoh konfigurasi environment backend
@@ -221,13 +225,16 @@ Robot-Delta-Polman/
 │       ├── components/          # 3D Canvas Twin, Coordinate Markers, Telemetry Cards
 │       └── ...
 │
-└── Delta 3D/                    # Desain CAD Mekanik & Manufaktur 3D
-    ├── Delta X 1 - v2.STEP       # Master assembly CAD model
-    ├── TripodBase.stl           # Base mounting tripod 3D model
-    ├── Conveyor-X/              # Desain modular konveyor pendukung
-    ├── Slider-X/                # Desain modular slider linear
-    ├── Delta-X-Robot/           # CAD komponen lengan dan bodi delta
-    └── Delta-X-End-Effectors/   # Beragam modul aktuator (Vacuum, Gripper, Soft, Laser)
+├── hardware/                    # Desain CAD Mekanik & Manufaktur 3D
+│   ├── Delta X 1 - v2.STEP       # Master assembly CAD model
+│   ├── TripodBase.stl           # Base mounting tripod 3D model
+│   ├── Conveyor-X/              # Desain modular konveyor pendukung
+│   ├── Slider-X/                # Desain modular slider linear
+│   ├── Delta-X-Robot/           # CAD komponen lengan dan bodi delta
+│   └── Delta-X-End-Effectors/   # Beragam modul aktuator (Vacuum, Gripper, Soft, Laser)
+│
+└── docs/                        # Dokumentasi teknis terpusat
+    └── ARCHITECTURE.md          # Spesifikasi arsitektur & pinout perangkat keras
 ```
 
 ---
@@ -236,11 +243,12 @@ Robot-Delta-Polman/
 
 ### 1. Pemrograman Firmware Mikrokontroler
 1. **Arduino Mega 2560:**
-   - Buka `DeltaRobot_Mega.ino` di **Arduino IDE**.
+   - Buka `firmware/DeltaRobot_Mega/DeltaRobot_Mega.ino` di **Arduino IDE**.
    - Pasang library: `AccelStepper` dan `EEPROM`.
-   - Pilih Board: **Arduino Mega or Mega 2560** $\rightarrow$ pilih Port USB $\rightarrow$ klik **Upload**.
+   - Pilih Board: **Arduino Mega or Mega 2560** $\rightarrow$ Prosesor: **ATmega2560 (Mega 2560)**.
+   - Sambungkan kabel USB dan klik **Upload**.
 2. **ESP32 IoT Gateway:**
-   - Buka `DeltaRobot_ESP32.ino` di Arduino IDE.
+   - Buka `firmware/DeltaRobot_ESP32/DeltaRobot_ESP32.ino` di **Arduino IDE**.
    - Pilih Board: **ESP32 Dev Module** $\rightarrow$ klik **Upload**.
    - Hubungkan laptop ke Wi-Fi `DeltaRobot_Config` (Password: `12345678`), buka browser pada `http://192.168.4.1` atau `http://deltarobot.local` untuk konfigurasi jaringan.
 
