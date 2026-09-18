@@ -245,8 +245,8 @@ app.get('/api/templates', async (req, res) => {
   }
 });
 
-// 5. Templates: Save Template
-app.post('/api/templates', tokenRequired, async (req, res) => {
+// 5. Templates: Save Template (Dapat diakses langsung oleh operator workstation)
+app.post('/api/templates', async (req, res) => {
   const {
     template_name,
     pickA_x = 0, pickA_y = 0, pickA_z = 0,
@@ -285,7 +285,7 @@ app.post('/api/templates', tokenRequired, async (req, res) => {
 });
 
 // 6. Templates: Delete Template
-app.delete('/api/templates/:name', tokenRequired, async (req, res) => {
+app.delete('/api/templates/:name', async (req, res) => {
   const { name } = req.params;
   try {
     const db = await getPool();

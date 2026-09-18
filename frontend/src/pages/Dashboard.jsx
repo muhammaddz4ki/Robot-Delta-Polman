@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Canvas, useLoader, useThree, useFrame } from '@react-three/fiber';
 import { Grid, Sphere, Center, CameraControls, Html } from '@react-three/drei';
 import { STLLoader } from 'three-stdlib';
-import { Wifi, WifiOff, Radio, RefreshCw, X, Server, UploadCloud, ExternalLink, Clock, Download, History, BarChart3, TrendingUp, CheckCircle, RotateCcw } from 'lucide-react';
+import { Wifi, WifiOff, Radio, RefreshCw, X, Server, UploadCloud, ExternalLink, Clock, Download, History, BarChart3, TrendingUp, CheckCircle, RotateCcw, Usb, PlugZap, Unplug, Shield, AlertTriangle, ChevronUp, ChevronDown, Maximize2, Minimize2, Trash2, Terminal as TerminalIcon, Send, Sliders, Play } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../ThemeContext';
 import DeltaRobotDigitalTwin from '../components/DeltaRobotDigitalTwin';
@@ -107,6 +107,20 @@ const Dashboard = () => {
     return s ? Number(s) : 5;
   });
 
+  const [liveClock, setLiveClock] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
+      setLiveClock(`${h}.${m}.${s}`);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const cameraControlsRef = useRef(null);
   const [isCameraLocked, setIsCameraLocked] = useState(false);
   const [activeView, setActiveView] = useState('iso');
@@ -137,6 +151,14 @@ const Dashboard = () => {
   const [wifiSubTab, setWifiSubTab] = useState('hotspot'); // 'hotspot' | 'ap'
   const [isApplyingAll, setIsApplyingAll] = useState(false);
   const [isOtaModalOpen, setIsOtaModalOpen] = useState(false);
+
+  // Web Serial API (USB Direct)
+  const serialPortRef = useRef(null);
+  const serialWriterRef = useRef(null);
+  const serialReaderRef = useRef(null);
+  const [usbConnected, setUsbConnected] = useState(false);
+  const [isConnectingUsb, setIsConnectingUsb] = useState(false);
+  const usbReadLoopRef = useRef(null);
 
   const lastSeenLogRef = useRef('');
 
@@ -202,9 +224,59 @@ const Dashboard = () => {
   const [templates, setTemplates] = useState([]);
   const [newTemplateName, setNewTemplateName] = useState("");
 
-  const [isAutonomous, setIsAutonomous] = useState(() => localStorage.getItem('delta_auto_mode') === 'true');
+  const [isAutonomous, setIsAutonomous] = useState(() => {
+    const s = localStorage.getItem('delta_auto_mode');
+    return s === 'true'; // Default FALSE (mati), hanya aktif jika user sengaja menyalakannya
+  });
+  const lastModeChangeTimeRef = useRef(0);
+  const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+
+  // VS Code Style Integrated Terminal State
+  const [terminalHeight, setTerminalHeight] = useState(() => {
+    const saved = localStorage.getItem('delta_terminal_height');
+    const val = saved ? parseInt(saved, 10) : 210;
+    return isNaN(val) ? 210 : Math.min(Math.max(val, 34), 600);
+  });
+  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(() => {
+    return localStorage.getItem('delta_terminal_collapsed') === 'true';
+  });
+  const [isTerminalMaximized, setIsTerminalMaximized] = useState(false);
+  const [isDraggingTerminal, setIsDraggingTerminal] = useState(false);
+  const [terminalInputText, setTerminalInputText] = useState('');
+  const [cmdHistory, setCmdHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const dragStartYRef = useRef(0);
+  const dragStartHeightRef = useRef(210);
   const [proxPolarity, setProxPolarity] = useState(() => localStorage.getItem('delta_prox_pol') || 'LOW');
   const [relayActive, setRelayActive] = useState(false);
+  const [gripState, setGripState] = useState('NETRAL'); // 'NETRAL' | 'TIUP' | 'HISAP'
+  const [gripTiupTime, setGripTiupTime] = useState(() => {
+    const s = localStorage.getItem('delta_grip_tiup');
+    const val = s ? parseInt(s, 10) : 1000;
+    return isNaN(val) ? 1000 : Math.min(Math.max(val, 1000), 10000);
+  });
+  const [gripHisapTime, setGripHisapTime] = useState(() => {
+    const s = localStorage.getItem('delta_grip_hisap');
+    const val = s ? parseInt(s, 10) : 3000;
+    return isNaN(val) ? 3000 : Math.min(Math.max(val, 1000), 10000);
+  });
+  const [gripExpandTime, setGripExpandTime] = useState(() => {
+    const s = localStorage.getItem('delta_grip_expand');
+    const val = s ? parseInt(s, 10) : 800;
+    return isNaN(val) ? 800 : Math.min(Math.max(val, 200), 3000);
+  });
+  const [gripHoldContinuous, setGripHoldContinuous] = useState(() => {
+    const s = localStorage.getItem('delta_grip_hold_cont');
+    return s !== null ? s === 'true' : true; // Default: Tiup aktif penuh terus (100% PWM)
+  });
+  const [pump1Speed, setPump1Speed] = useState(() => {
+    const s = localStorage.getItem('delta_pump1_speed') || localStorage.getItem('delta_pump_speed');
+    return s ? parseInt(s, 10) : 255;
+  });
+  const [pump2Speed, setPump2Speed] = useState(() => {
+    const s = localStorage.getItem('delta_pump2_speed');
+    return s ? parseInt(s, 10) : 255;
+  });
   const [isKeyJogActive, setIsKeyJogActive] = useState(() => {
     const s = localStorage.getItem('delta_key_jog');
     return s !== null ? s === 'true' : true;
@@ -280,7 +352,15 @@ const Dashboard = () => {
   // Keyboard Jogging Listener
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!isKeyJogActive) return;
+      // Tombol EMG (Escape) selalu diizinkan kapan saja demi keselamatan
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        sendCommand('EMG');
+        return;
+      }
+
+      // Jika Auto Mode aktif atau jogging nonaktif, jangan proses pergerakan keyboard
+      if (!isKeyJogActive || isAutonomous) return;
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
@@ -304,21 +384,24 @@ const Dashboard = () => {
         sendCommand(`${pos.x} ${pos.y} ${pos.z - jogStep}`);
       } else if (e.code === 'Space') {
         e.preventDefault();
-        const nextRelay = !relayActive;
-        setRelayActive(nextRelay);
-        sendCommand(nextRelay ? 'HISAP' : 'LEPAS');
+        if (gripState === 'TIUP') {
+          setGripState('HISAP');
+          setRelayActive(false);
+          sendCommand('HISAP');
+        } else {
+          setGripState('TIUP');
+          setRelayActive(true);
+          sendCommand('TIUP');
+        }
       } else if (e.code === 'KeyH') {
         e.preventDefault();
         sendCommand('HOME');
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        sendCommand('EMG');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isKeyJogActive, pos, jogStep, relayActive]);
+  }, [isKeyJogActive, isAutonomous, pos, jogStep, gripState, relayActive]);
 
   // Automated Trajectory Runner
   const runTestPattern = async (patternType) => {
@@ -364,6 +447,97 @@ const Dashboard = () => {
 
   const logsEndRef = useRef(null);
 
+  // VS Code Terminal Resize & Key Handlers
+  const handleStartResize = (clientY) => {
+    setIsDraggingTerminal(true);
+    dragStartYRef.current = clientY;
+    dragStartHeightRef.current = isTerminalCollapsed ? 34 : terminalHeight;
+
+    const onMove = (moveY) => {
+      const deltaY = dragStartYRef.current - moveY;
+      const newH = Math.min(Math.max(dragStartHeightRef.current + deltaY, 34), 650);
+      setTerminalHeight(newH);
+      if (newH > 48 && isTerminalCollapsed) {
+        setIsTerminalCollapsed(false);
+        localStorage.setItem('delta_terminal_collapsed', 'false');
+      }
+    };
+
+    const onMouseMove = (e) => onMove(e.clientY);
+    const onTouchMove = (e) => {
+      if (e.touches && e.touches[0]) onMove(e.touches[0].clientY);
+    };
+
+    const onEnd = () => {
+      setIsDraggingTerminal(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onEnd);
+      setTerminalHeight(cur => {
+        localStorage.setItem('delta_terminal_height', cur);
+        return cur;
+      });
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onEnd);
+  };
+
+  const handleToggleTerminalCollapse = () => {
+    setIsTerminalCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('delta_terminal_collapsed', next ? 'true' : 'false');
+      if (!next && terminalHeight < 100) {
+        setTerminalHeight(210);
+        localStorage.setItem('delta_terminal_height', 210);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleTerminalMaximize = () => {
+    if (isTerminalMaximized) {
+      setIsTerminalMaximized(false);
+      setTerminalHeight(210);
+    } else {
+      setIsTerminalCollapsed(false);
+      setIsTerminalMaximized(true);
+      setTerminalHeight(480);
+    }
+  };
+
+  const handleTerminalKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      const val = terminalInputText.trim();
+      if (val) {
+        sendCommand(val);
+        setCmdHistory(prev => [val, ...prev.filter(item => item !== val).slice(0, 30)]);
+        setHistoryIndex(-1);
+        setTerminalInputText('');
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (cmdHistory.length > 0 && historyIndex + 1 < cmdHistory.length) {
+        const nextIdx = historyIndex + 1;
+        setHistoryIndex(nextIdx);
+        setTerminalInputText(cmdHistory[nextIdx]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const nextIdx = historyIndex - 1;
+        setHistoryIndex(nextIdx);
+        setTerminalInputText(cmdHistory[nextIdx]);
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1);
+        setTerminalInputText('');
+      }
+    }
+  };
+
   // Normalize IP / URL
   const getCleanEspUrl = (url) => {
     let clean = (url || '').trim();
@@ -394,6 +568,33 @@ const Dashboard = () => {
         if (data.last_log && data.last_log !== lastSeenLogRef.current && data.last_log !== "Menunggu status robot..." && data.last_log.trim()) {
           lastSeenLogRef.current = data.last_log;
           setLogs(prev => [...prev, `[ROBOT] ${data.last_log}`]);
+          if (data.last_log.includes('TIUP AKTIF') || data.last_log.includes('Pompa 1 ON')) {
+            setGripState('TIUP');
+            setRelayActive(true);
+          } else if (data.last_log.includes('HISAP AKTIF') || data.last_log.includes('Pompa 2 ON')) {
+            setGripState('HISAP');
+            setRelayActive(false);
+          } else if (
+            data.last_log.includes('Pompa STOP') ||
+            data.last_log.includes('Pompa 2 OFF') ||
+            data.last_log.includes('Pompa OFF') ||
+            data.last_log.includes('Pompa Netral') ||
+            data.last_log.includes('STOP / Netral') ||
+            data.last_log.includes('Netral') ||
+            data.last_log.includes('Dilepas') ||
+            data.last_log.includes('Grip:NETRAL') ||
+            data.last_log.includes('SELESAI') ||
+            data.last_log.includes('CYCLE_END')
+          ) {
+            setGripState('NETRAL');
+            setRelayActive(false);
+          }
+
+          if (data.last_log.includes('EMG AKTIF') || data.last_log.includes('DARURAT AKTIF') || data.last_log.includes('EMG:ACTIVE') || data.last_log.includes('Mode EMG aktif')) {
+            setIsEmergencyActive(true);
+          } else if (data.last_log.includes('Dilepas') || data.last_log.includes('Reset') || data.last_log.includes('[HOMING] Selesai') || data.last_log.includes('SELESAI')) {
+            setIsEmergencyActive(false);
+          }
         }
       } else {
         console.warn('[ESP32 STATUS] Response not ok:', res.status);
@@ -470,10 +671,132 @@ const Dashboard = () => {
     setEspIp(cleanIp);
     localStorage.setItem('delta_conn_mode', mode);
     localStorage.setItem('delta_esp_ip', cleanIp);
-    setLogs(prev => [...prev, `[SYSTEM] Mode koneksi: ${mode.toUpperCase()} (${mode === 'wifi' ? cleanIp : 'Backend'})`]);
+    setLogs(prev => [...prev, `[SYSTEM] Mode koneksi: ${mode.toUpperCase()} (${mode === 'wifi' ? cleanIp : mode === 'usb' ? 'Web Serial USB' : 'Backend'})`]);
     if (mode === 'wifi') {
       checkEspStatus(cleanIp);
     }
+  };
+
+  // ===== WEB SERIAL API HANDLERS =====
+  const connectUsb = async () => {
+    if (!('serial' in navigator)) {
+      alert('Web Serial API tidak didukung. Gunakan browser Chrome atau Edge versi terbaru.');
+      return;
+    }
+    try {
+      setIsConnectingUsb(true);
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      serialPortRef.current = port;
+
+      const writer = port.writable.getWriter();
+      serialWriterRef.current = writer;
+
+      setUsbConnected(true);
+      setLogs(prev => [...prev, '[USB] Terhubung ke Arduino Mega via USB Serial (115200 baud).']);
+
+      // Start read loop
+      const readLoop = async () => {
+        const reader = port.readable.getReader();
+        serialReaderRef.current = reader;
+        const decoder = new TextDecoder();
+        let buffer = '';
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.length > 0) {
+                setLogs(prev => [...prev, `[MEGA] ${trimmed}`]);
+                if (trimmed.includes('TIUP AKTIF') || trimmed.includes('Pompa 1 ON')) {
+                  setGripState('TIUP');
+                  setRelayActive(true);
+                } else if (trimmed.includes('HISAP AKTIF') || trimmed.includes('Pompa 2 ON')) {
+                  setGripState('HISAP');
+                  setRelayActive(false);
+                } else if (
+                  trimmed.includes('Pompa STOP') ||
+                  trimmed.includes('Pompa 2 OFF') ||
+                  trimmed.includes('Pompa OFF') ||
+                  trimmed.includes('Pompa Netral') ||
+                  trimmed.includes('STOP / Netral') ||
+                  trimmed.includes('Netral') ||
+                  trimmed.includes('Dilepas') ||
+                  trimmed.includes('Grip:NETRAL') ||
+                  trimmed.includes('SELESAI') ||
+                  trimmed.includes('CYCLE_END')
+                ) {
+                  setGripState('NETRAL');
+                  setRelayActive(false);
+                }
+
+                if (trimmed.includes('EMG AKTIF') || trimmed.includes('DARURAT AKTIF') || trimmed.includes('EMG:ACTIVE') || trimmed.includes('Mode EMG aktif')) {
+                  setIsEmergencyActive(true);
+                } else if (trimmed.includes('Dilepas') || trimmed.includes('Reset') || trimmed.includes('[HOMING] Selesai') || trimmed.includes('SELESAI')) {
+                  setIsEmergencyActive(false);
+                }
+
+                if (Date.now() - lastModeChangeTimeRef.current > 4000) {
+                  if (trimmed.includes('[MODE] >>> MODE AUTO') || trimmed.includes('Autonomous Mode ON') || trimmed.includes('Auto Mode: ON')) {
+                    setIsAutonomous(true);
+                    localStorage.setItem('delta_auto_mode', 'true');
+                  } else if (trimmed.includes('[MODE] >>> MODE MANUAL') || trimmed.includes('Autonomous Mode OFF') || trimmed.includes('Auto Mode: OFF')) {
+                    setIsAutonomous(false);
+                    localStorage.setItem('delta_auto_mode', 'false');
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          setLogs(prev => [...prev, `[USB] Koneksi terputus: ${err.message}`]);
+        } finally {
+          reader.releaseLock();
+          setUsbConnected(false);
+        }
+      };
+      usbReadLoopRef.current = readLoop();
+    } catch (err) {
+      if (err.name !== 'NotFoundError') {
+        setLogs(prev => [...prev, `[USB ERROR] ${err.message}`]);
+      }
+    } finally {
+      setIsConnectingUsb(false);
+    }
+  };
+
+  const disconnectUsb = async () => {
+    try {
+      if (serialReaderRef.current) {
+        await serialReaderRef.current.cancel();
+        serialReaderRef.current = null;
+      }
+      if (serialWriterRef.current) {
+        await serialWriterRef.current.close();
+        serialWriterRef.current = null;
+      }
+      if (serialPortRef.current) {
+        await serialPortRef.current.close();
+        serialPortRef.current = null;
+      }
+      setUsbConnected(false);
+      setLogs(prev => [...prev, '[USB] Koneksi USB diputus.']);
+    } catch (err) {
+      setLogs(prev => [...prev, `[USB] ${err.message}`]);
+    }
+  };
+
+  const sendUsbCommand = async (cmd) => {
+    if (!serialWriterRef.current || !usbConnected) {
+      setLogs(prev => [...prev, '[USB ERROR] Tidak terhubung ke USB Serial. Klik "Hubungkan USB" dulu.']);
+      return;
+    }
+    const encoder = new TextEncoder();
+    await serialWriterRef.current.write(encoder.encode(cmd + '\n'));
   };
 
   const fetchLayout = async () => {
@@ -495,17 +818,36 @@ const Dashboard = () => {
   };
 
   const fetchTemplates = async () => {
+    let combined = [];
+    try {
+      const local = JSON.parse(localStorage.getItem('delta_local_templates') || '[]');
+      if (Array.isArray(local)) combined = [...local];
+    } catch (_) {}
+
     try {
       const token = localStorage.getItem('delta_token');
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/templates', { headers });
-      const data = await res.json();
-      if (data.status === 'success' && Array.isArray(data.data)) {
-        setTemplates(data.data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success' && Array.isArray(data.data)) {
+          const map = new Map();
+          data.data.forEach(t => map.set(t.template_name, t));
+          combined.forEach(t => {
+            if (!map.has(t.template_name)) {
+              map.set(t.template_name, t);
+            }
+          });
+          setTemplates(Array.from(map.values()));
+          return;
+        }
       }
     } catch (err) {
-      console.error('Fetch templates error:', err);
+      console.warn('Fetch templates server fallback:', err);
+    }
+    if (combined.length > 0) {
+      setTemplates(combined);
     }
   };
 
@@ -567,6 +909,15 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  const handleSetMode = async (targetMode) => {
+    const isAuto = targetMode === 'AUTO';
+    setIsAutonomous(isAuto);
+    localStorage.setItem('delta_auto_mode', isAuto ? 'true' : 'false');
+    lastModeChangeTimeRef.current = Date.now();
+    await sendCommand(isAuto ? 'MODE AUTO' : 'MODE MANUAL');
+    setLogs(prev => [...prev, `[SYSTEM] Mode operasional dialihkan ke: ${isAuto ? 'AUTO' : 'MANUAL'}`]);
+  };
+
   const sendCommand = async (cmd) => {
     setLogs(prev => [...prev, `> ${cmd}`]);
 
@@ -580,7 +931,13 @@ const Dashboard = () => {
     } else if (parts[0] === "Z" && parts.length === 2) {
       setPos(p => ({ ...p, z: parseFloat(parts[1]) }));
     } else if (parts[0] === "HOME") {
-      setPos({ x: 0, y: 0, z: -200 });
+      setPos({ x: 0, y: 0, z: -50 });
+    }
+
+    // USB Web Serial mode - kirim langsung ke Arduino Mega
+    if (connectionMode === 'usb') {
+      await sendUsbCommand(cmd);
+      return;
     }
 
     if (connectionMode === 'wifi') {
@@ -662,68 +1019,107 @@ const Dashboard = () => {
       setLogs(prev => [...prev, `[SYSTEM] Template dimuat: ${name}`]);
 
       await sendCommand(`SET_A_PICK ${t.pickA_x} ${t.pickA_y} ${t.pickA_z}`);
-      await sleep(150);
+      await sleep(100);
       await sendCommand(`SET_A_DROP ${t.dropA_x} ${t.dropA_y} ${t.dropA_z}`);
-      await sleep(150);
+      await sleep(100);
       await sendCommand(`SET_B_PICK ${t.pickB_x} ${t.pickB_y} ${t.pickB_z}`);
-      await sleep(150);
+      await sleep(100);
       await sendCommand(`SET_B_DROP ${t.dropB_x} ${t.dropB_y} ${t.dropB_z}`);
+      await sleep(100);
+      await sendCommand(`SAVE_CONFIG`);
+      setLogs(prev => [...prev, `[SYSTEM] Seluruh titik koordinat template '${name}' disimpan permanen ke EEPROM robot.`]);
     }
   };
 
   const handleDeleteTemplate = async () => {
-    if (!newTemplateName.trim()) return;
-    if (!window.confirm(`Hapus template '${newTemplateName}'?`)) return;
+    const trimmedName = newTemplateName.trim();
+    if (!trimmedName) {
+      alert("Pilih template yang ingin dihapus!");
+      return;
+    }
+    if (!window.confirm(`Hapus template '${trimmedName}'?`)) return;
 
+    // 1. Hapus dari local storage
+    try {
+      const local = JSON.parse(localStorage.getItem('delta_local_templates') || '[]');
+      const filtered = local.filter(t => t.template_name !== trimmedName);
+      localStorage.setItem('delta_local_templates', JSON.stringify(filtered));
+    } catch (_) {}
+
+    // 2. Hapus dari backend database
     const token = localStorage.getItem('delta_token');
     try {
-      const res = await fetch(`/api/templates/${newTemplateName}`, {
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/templates/${encodeURIComponent(trimmedName)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        setLogs(prev => [...prev, `[SYSTEM] Template '${newTemplateName}' dihapus.`]);
-        setNewTemplateName("");
-        fetchTemplates();
+      if (res.ok && data.status === 'success') {
+        setLogs(prev => [...prev, `[SYSTEM] Template '${trimmedName}' berhasil dihapus.`]);
+      } else {
+        setLogs(prev => [...prev, `[SYSTEM] Template '${trimmedName}' dihapus dari cache lokal.`]);
       }
     } catch (err) {
-      setLogs(prev => [...prev, `[ERROR] Gagal menghapus template`]);
+      setLogs(prev => [...prev, `[SYSTEM] Template '${trimmedName}' dihapus dari cache lokal.`]);
     }
+    setNewTemplateName("");
+    fetchTemplates();
   };
 
   const handleSaveTemplate = async () => {
-    if (!newTemplateName.trim()) return;
+    const trimmedName = newTemplateName.trim();
+    if (!trimmedName) {
+      alert("Masukkan nama template terlebih dahulu!");
+      return;
+    }
     const token = localStorage.getItem('delta_token');
+    const payload = {
+      template_name: trimmedName,
+      pickA_x: parseFloat(pickA.x) || 0, pickA_y: parseFloat(pickA.y) || 0, pickA_z: parseFloat(pickA.z) || 0,
+      dropA_x: parseFloat(dropA.x) || 0, dropA_y: parseFloat(dropA.y) || 0, dropA_z: parseFloat(dropA.z) || 0,
+      pickB_x: parseFloat(pickB.x) || 0, pickB_y: parseFloat(pickB.y) || 0, pickB_z: parseFloat(pickB.z) || 0,
+      dropB_x: parseFloat(dropB.x) || 0, dropB_y: parseFloat(dropB.y) || 0, dropB_z: parseFloat(dropB.z) || 0
+    };
+
+    // 1. Simpan ke local storage selalu (offline resilience)
     try {
+      const local = JSON.parse(localStorage.getItem('delta_local_templates') || '[]');
+      const filtered = local.filter(t => t.template_name !== trimmedName);
+      filtered.push({ ...payload, id: Date.now() });
+      localStorage.setItem('delta_local_templates', JSON.stringify(filtered));
+    } catch (_) {}
+
+    // 2. Simpan ke backend database
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/templates', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          template_name: newTemplateName,
-          pickA_x: pickA.x, pickA_y: pickA.y, pickA_z: pickA.z,
-          dropA_x: dropA.x, dropA_y: dropA.y, dropA_z: dropA.z,
-          pickB_x: pickB.x, pickB_y: pickB.y, pickB_z: pickB.z,
-          dropB_x: dropB.x, dropB_y: dropB.y, dropB_z: dropB.z
-        })
+        headers,
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        setLogs(prev => [...prev, `[SYSTEM] Template '${newTemplateName}' tersimpan.`]);
+      if (res.ok && data.status === 'success') {
+        setLogs(prev => [...prev, `[SYSTEM] Template '${trimmedName}' tersimpan di database.`]);
+        setNewTemplateName("");
+        fetchTemplates();
+      } else {
+        setLogs(prev => [...prev, `[PERINGATAN] Template tersimpan lokal (Server: ${data.message || res.statusText}).`]);
         setNewTemplateName("");
         fetchTemplates();
       }
     } catch (err) {
-      setLogs(prev => [...prev, `[ERROR] Gagal menyimpan template`]);
+      setLogs(prev => [...prev, `[PERINGATAN] Template tersimpan secara lokal (${err.message}).`]);
+      setNewTemplateName("");
+      fetchTemplates();
     }
   };
 
   const handleApplyAllCoordinates = async () => {
     setIsApplyingAll(true);
-    setLogs(prev => [...prev, `[SYSTEM] Menerapkan seluruh koordinat dan parameter motor ke robot...`]);
+    setLogs(prev => [...prev, `[SYSTEM] Menerapkan seluruh koordinat dan parameter robot ke EEPROM...`]);
     try {
       localStorage.setItem('delta_pickA', JSON.stringify(pickA));
       localStorage.setItem('delta_dropA', JSON.stringify(dropA));
@@ -731,6 +1127,10 @@ const Dashboard = () => {
       localStorage.setItem('delta_dropB', JSON.stringify(dropB));
       localStorage.setItem('delta_motor_speed', speedVal);
       localStorage.setItem('delta_motor_accel', accelVal);
+      localStorage.setItem('delta_grip_tiup', gripTiupTime);
+      localStorage.setItem('delta_grip_hisap', gripHisapTime);
+      localStorage.setItem('delta_grip_expand', gripExpandTime);
+      localStorage.setItem('delta_grip_hold_cont', gripHoldContinuous);
 
       await sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`);
       await sleep(100);
@@ -743,8 +1143,16 @@ const Dashboard = () => {
       await sendCommand(`SET_SPEED ${speedVal}`);
       await sleep(100);
       await sendCommand(`SET_ACCEL ${accelVal}`);
+      await sleep(100);
+      await sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`);
+      await sleep(100);
+      await sendCommand(`SET_GRIP_HOLD ${gripHoldContinuous ? 1 : 0}`);
+      await sleep(100);
+      await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+      await sleep(100);
+      await sendCommand(`SAVE_CONFIG`);
 
-      setLogs(prev => [...prev, `[SYSTEM] Seluruh koordinat Profil A & B serta parameter motor berhasil disinkronkan ke robot.`]);
+      setLogs(prev => [...prev, `[SYSTEM] SUKSES! Seluruh parameter (Koordinat A/B, Kecepatan/Akselerasi, Waktu Tiup/Hisap/Expand, Mode Tiup Terus, PWM Pompa) tersimpan permanen di otak robot (EEPROM)!`]);
     } catch (err) {
       setLogs(prev => [...prev, `[ERROR] Gagal menerapkan seluruh koordinat: ${err.message}`]);
     } finally {
@@ -755,38 +1163,68 @@ const Dashboard = () => {
   const executeStep = async (stepName, profile) => {
     const p = profile === 'A' ? pickA : pickB;
     const d = profile === 'A' ? dropA : dropB;
-    const safeZ = -230;
+    const safePickZ = Math.min(-200, Math.max(-315, Number(p.z) + 45));
+    const safeDropZ = Math.min(-200, Math.max(-315, Number(d.z) + 45));
 
     switch (stepName) {
       case 'approach_pick':
-        setLogs(prev => [...prev, `[STEP ${profile}] 1. Pindah ke atas Pick: (${p.x}, ${p.y}, ${safeZ})`]);
-        await sendCommand(`${p.x} ${p.y} ${safeZ}`);
+        setLogs(prev => [...prev, `[STEP ${profile}] 1. Pindah ke atas Pick: (${p.x}, ${p.y}, ${safePickZ}) + HISAP (Mengembang Buka Cakar ${gripExpandTime}ms)`]);
+        await sendCommand(`${p.x} ${p.y} ${safePickZ}`);
+        await sleep(150);
+        setGripState('HISAP');
+        setRelayActive(false);
+        await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+        await sendCommand('HISAP ON');
+        await sleep(gripExpandTime);
         break;
       case 'pick_down':
-        setLogs(prev => [...prev, `[STEP ${profile}] 2. Turun ke Pick: (${p.x}, ${p.y}, ${p.z}) + HISAP ON`]);
+        setLogs(prev => [...prev, `[STEP ${profile}] 2. Turun ke Pick: (${p.x}, ${p.y}, ${p.z}) -> TIUP (AMBIL/MENJEPIT BENDA)`]);
         await sendCommand(`${p.x} ${p.y} ${p.z}`);
         await sleep(250);
+        setGripState('TIUP');
         setRelayActive(true);
-        await sendCommand('HISAP');
+        await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+        await sendCommand('TIUP ON');
+        await sleep(gripTiupTime);
+        if (gripHoldContinuous) {
+          setLogs(prev => [...prev, `[STEP ${profile}] Benda terkunci rapat. Mode Tiup Aktif Terus Penuh (PWM ${pump1Speed}).`]);
+        } else {
+          const holdPwm = Math.max(80, Math.round(pump1Speed * 0.55));
+          await sendCommand(`SET_GRIP_SPEED ${holdPwm} ${pump2Speed}`);
+          setLogs(prev => [...prev, `[STEP ${profile}] Benda terkunci rapat. Mode hemat daya aktif (PWM ${holdPwm}).`]);
+        }
         break;
       case 'pick_lift':
-        setLogs(prev => [...prev, `[STEP ${profile}] 3. Angkat Objek: (${p.x}, ${p.y}, ${safeZ})`]);
-        await sendCommand(`${p.x} ${p.y} ${safeZ}`);
+        setLogs(prev => [...prev, `[STEP ${profile}] 3. Angkat Objek: (${p.x}, ${p.y}, ${safePickZ}) (TIUP MENAHAN BENDA)`]);
+        await sendCommand(`${p.x} ${p.y} ${safePickZ}`);
+        await sleep(150);
+        setLogs(prev => [...prev, `[STEP ${profile}] 3b. Geser ke tengah dulu: (0, 0, ${safePickZ})`]);
+        await sendCommand(`0 0 ${safePickZ}`);
+        await sleep(150);
+        setLogs(prev => [...prev, `[STEP ${profile}] 3c. Naik lurus ke Home: (0, 0, -200)`]);
+        await sendCommand(`0 0 -200`);
         break;
       case 'approach_drop':
-        setLogs(prev => [...prev, `[STEP ${profile}] 4. Geser ke atas Drop: (${d.x}, ${d.y}, ${safeZ})`]);
-        await sendCommand(`${d.x} ${d.y} ${safeZ}`);
+        setLogs(prev => [...prev, `[STEP ${profile}] 4. Geser ke atas Drop: (${d.x}, ${d.y}, ${safeDropZ}) (TIUP TETAP MENAHAN)`]);
+        await sendCommand(`${d.x} ${d.y} ${safeDropZ}`);
         break;
       case 'drop_down':
-        setLogs(prev => [...prev, `[STEP ${profile}] 5. Turun ke Drop: (${d.x}, ${d.y}, ${d.z}) + LEPAS OFF`]);
+        setLogs(prev => [...prev, `[STEP ${profile}] 5. Turun ke Drop: (${d.x}, ${d.y}, ${d.z}) -> HISAP (LEPAS BARANG)`]);
         await sendCommand(`${d.x} ${d.y} ${d.z}`);
         await sleep(250);
+        setGripState('HISAP');
         setRelayActive(false);
-        await sendCommand('LEPAS');
+        await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+        await sendCommand('HISAP ON');
+        await sleep(gripHisapTime);
+        await sendCommand('STOP_PUMP');
+        setGripState('NETRAL');
+        setLogs(prev => [...prev, `[STEP ${profile}] Benda dilepas beres. Driver L298N OFF (0V). Jeda 1 detik daya murni Stepper sebelum balik home...`]);
+        await sleep(1000);
         break;
       case 'drop_lift':
-        setLogs(prev => [...prev, `[STEP ${profile}] 6. Angkat Selesai: (${d.x}, ${d.y}, ${safeZ})`]);
-        await sendCommand(`${d.x} ${d.y} ${safeZ}`);
+        setLogs(prev => [...prev, `[STEP ${profile}] 6. Balik Home langsung sampai menyentuh Limit Switch (Mode Sinkron Halus Tanpa Gasruk)!`]);
+        await sendCommand('HOME');
         break;
       default:
         break;
@@ -794,10 +1232,22 @@ const Dashboard = () => {
   };
 
   const applyGlobalZOffset = (delta) => {
-    const newPickA = { ...pickA, z: Math.round((Number(pickA.z) + delta) * 10) / 10 };
-    const newDropA = { ...dropA, z: Math.round((Number(dropA.z) + delta) * 10) / 10 };
-    const newPickB = { ...pickB, z: Math.round((Number(pickB.z) + delta) * 10) / 10 };
-    const newDropB = { ...dropB, z: Math.round((Number(dropB.z) + delta) * 10) / 10 };
+    const MIN_SAFE_Z = -400.0; // Batas fisik absolut Z
+    const MAX_SAFE_Z = -100.0;
+
+    const clampZ = (currentZ) => {
+      const computed = Math.round((Number(currentZ) + delta) * 10) / 10;
+      return Math.max(MIN_SAFE_Z, Math.min(MAX_SAFE_Z, computed));
+    };
+
+    const newPickA = { ...pickA, z: clampZ(pickA.z) };
+    const newDropA = { ...dropA, z: clampZ(dropA.z) };
+    const newPickB = { ...pickB, z: clampZ(pickB.z) };
+    const newDropB = { ...dropB, z: clampZ(dropB.z) };
+
+    const wasClamped = [pickA.z, dropA.z, pickB.z, dropB.z].some(
+      z => (Number(z) + delta) < MIN_SAFE_Z
+    );
 
     setPickA(newPickA);
     setDropA(newDropA);
@@ -809,7 +1259,27 @@ const Dashboard = () => {
     localStorage.setItem('delta_pickB', JSON.stringify(newPickB));
     localStorage.setItem('delta_dropB', JSON.stringify(newDropB));
 
-    setLogs(prev => [...prev, `[Z-OFFSET] Seluruh titik Z disesuaikan (${delta > 0 ? '+' : ''}${delta} mm). Klik 'Terapkan Semua' untuk sinkronisasi ke robot.`]);
+    // Kirim langsung ke Arduino Mega agar koreksi Z langsung aktif & tersimpan permanen
+    (async () => {
+      try {
+        await sendCommand(`SET_A_PICK ${newPickA.x} ${newPickA.y} ${newPickA.z}`);
+        await sleep(50);
+        await sendCommand(`SET_A_DROP ${newDropA.x} ${newDropA.y} ${newDropA.z}`);
+        await sleep(50);
+        await sendCommand(`SET_B_PICK ${newPickB.x} ${newPickB.y} ${newPickB.z}`);
+        await sleep(50);
+        await sendCommand(`SET_B_DROP ${newDropB.x} ${newDropB.y} ${newDropB.z}`);
+        await sleep(50);
+        await sendCommand(`SAVE_CONFIG`);
+        setLogs(prev => [...prev, `[Z-OFFSET] Koreksi Z (${delta > 0 ? '+' : ''}${delta} mm) langsung diterapkan & disimpan permanen ke EEPROM robot.`]);
+      } catch (e) {}
+    })();
+
+    if (wasClamped) {
+      setLogs(prev => [...prev, `[Z-OFFSET] Peringatan: Titik Z dibatasi di batas aman (${MIN_SAFE_Z} mm) agar tidak menabrak batas mekanis!`]);
+    } else {
+      setLogs(prev => [...prev, `[Z-OFFSET] Seluruh titik Z disesuaikan (${delta > 0 ? '+' : ''}${delta} mm).`]);
+    }
   };
 
   const executeTimedSequence = async (profileKey) => {
@@ -828,16 +1298,36 @@ const Dashboard = () => {
       if (profileKey === 'A') {
         setLogs(prev => [...prev, `[CYCLE] Memulai siklus ${profileLabel}...`]);
         await sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`);
-        await sleep(100);
+        await sleep(40);
         await sendCommand(`SET_A_DROP ${dropA.x} ${dropA.y} ${dropA.z}`);
-        await sleep(100);
+        await sleep(40);
+        await sendCommand(`SET_SPEED ${speedVal}`);
+        await sleep(40);
+        await sendCommand(`SET_ACCEL ${accelVal}`);
+        await sleep(40);
+        await sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`);
+        await sleep(40);
+        await sendCommand(`SET_GRIP_HOLD ${gripHoldContinuous ? 1 : 0}`);
+        await sleep(40);
+        await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+        await sleep(50);
         await sendCommand('STARTA');
       } else {
         setLogs(prev => [...prev, `[CYCLE] Memulai siklus ${profileLabel}...`]);
         await sendCommand(`SET_B_PICK ${pickB.x} ${pickB.y} ${pickB.z}`);
-        await sleep(100);
+        await sleep(40);
         await sendCommand(`SET_B_DROP ${dropB.x} ${dropB.y} ${dropB.z}`);
-        await sleep(100);
+        await sleep(40);
+        await sendCommand(`SET_SPEED ${speedVal}`);
+        await sleep(40);
+        await sendCommand(`SET_ACCEL ${accelVal}`);
+        await sleep(40);
+        await sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`);
+        await sleep(40);
+        await sendCommand(`SET_GRIP_HOLD ${gripHoldContinuous ? 1 : 0}`);
+        await sleep(40);
+        await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+        await sleep(50);
         await sendCommand('STARTB');
       }
 
@@ -937,8 +1427,25 @@ const Dashboard = () => {
     <div className="dashboard-layout">
       {/* TOPBAR */}
       <header className="topbar">
-        <div className="logo">
-          <span>DELTA ROBOT OS</span>
+        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <img 
+            src="/logopolman.svg" 
+            alt="POLMAN BANDUNG" 
+            style={{ height: '32px', width: 'auto', objectFit: 'contain', flexShrink: 0 }}
+            onError={(e) => { e.target.src = '/polman.png'; }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, flexShrink: 0 }}>
+            <span style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.3px', color: 'var(--text-color)', whiteSpace: 'nowrap' }}>
+              ROBOT DELTA
+            </span>
+            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>
+              POLMAN BANDUNG • OPERATIONAL CENTER
+            </span>
+          </div>
+          <div className="system-status-pill-topbar">
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6', boxShadow: '0 0 6px #3b82f6', flexShrink: 0 }}></span>
+            <span>SYSTEM STATUS: ACTIVE</span>
+          </div>
         </div>
 
         <div className="topbar-actions">
@@ -949,10 +1456,19 @@ const Dashboard = () => {
               onClick={() => setIsWifiModalOpen(true)}
               title="Pengaturan Wi-Fi & ESP32"
             >
-              {espStatus.status === 'connected' ? <Wifi size={13} /> : (espStatus.status === 'ap_mode' ? <Radio size={13} /> : <WifiOff size={13} />)}
+              {espStatus.status === 'connected' ? <Wifi size={13} style={{ flexShrink: 0 }} /> : (espStatus.status === 'ap_mode' ? <Radio size={13} style={{ flexShrink: 0 }} /> : <WifiOff size={13} style={{ flexShrink: 0 }} />)}
               <span>
                 {espStatus.status === 'connected' ? `${espStatus.ssid || espStatus.ip}` : (espStatus.status === 'ap_mode' ? 'MODE AP' : 'ESP32 OFFLINE')}
               </span>
+            </div>
+          ) : connectionMode === 'usb' ? (
+            <div
+              className={`conn-badge ${usbConnected ? 'online' : 'offline'}`}
+              onClick={() => setIsWifiModalOpen(true)}
+              title="Mode USB Serial Langsung ke Mega"
+            >
+              <Usb size={13} style={{ flexShrink: 0 }} />
+              <span>{usbConnected ? 'USB TERHUBUNG' : 'USB TERPUTUS'}</span>
             </div>
           ) : (
             <div
@@ -960,10 +1476,61 @@ const Dashboard = () => {
               onClick={() => setIsWifiModalOpen(true)}
               title="Mode Server Backend (Serial USB)"
             >
-              <Server size={13} />
+              <Server size={13} style={{ flexShrink: 0 }} />
               <span>SERIAL COM</span>
             </div>
           )}
+
+          {/* Realtime Live Clock Pill */}
+          <div 
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              gap: '6px', 
+              height: '32px',
+              padding: '0 10px', 
+              background: 'var(--card-bg)', 
+              border: '1px solid var(--border-color)', 
+              borderRadius: '6px', 
+              fontSize: '0.78rem', 
+              fontWeight: 600, 
+              color: 'var(--text-color)', 
+              fontFamily: "'JetBrains Mono', monospace",
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box',
+              flexShrink: 0,
+              lineHeight: 1
+            }}
+          >
+            <Clock size={13} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+            <span>{liveClock || '12.55.11'}</span>
+          </div>
+
+          {/* Operating Mode Status Pill in Top Header */}
+          <div
+            className="conn-badge"
+            style={{
+              cursor: 'pointer',
+              background: isAutonomous ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+              borderColor: isAutonomous ? 'rgba(245, 158, 11, 0.35)' : 'rgba(59, 130, 246, 0.35)',
+              color: isAutonomous ? '#f59e0b' : '#3b82f6',
+            }}
+            onClick={() => handleSetMode(isAutonomous ? 'MANUAL' : 'AUTO')}
+            title={isAutonomous ? "Mode AUTO Aktif - Klik untuk beralih ke Mode MANUAL" : "Mode MANUAL Aktif - Klik untuk beralih ke Mode AUTO"}
+          >
+            {isAutonomous ? <AlertTriangle size={13} style={{ flexShrink: 0 }} /> : <Shield size={13} style={{ flexShrink: 0 }} />}
+            <span>{isAutonomous ? 'MODE: AUTO' : 'MODE: MANUAL'}</span>
+          </div>
+
+          {/* Navigasi ke Landing Page */}
+          <button
+            className="wifi-topbar-btn"
+            onClick={() => navigate('/')}
+            title="Buka Landing Page Robot Delta"
+          >
+            Landing Page
+          </button>
 
           {/* Wi-Fi Setup Button */}
           <button
@@ -979,11 +1546,11 @@ const Dashboard = () => {
           {/* OTA Firmware Update Button */}
           <button
             className="wifi-topbar-btn"
-            style={{ display: 'flex', alignItems: 'center', gap: '5px', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+            style={{ borderColor: 'rgba(56, 189, 248, 0.4)' }}
             onClick={() => setIsOtaModalOpen(true)}
             title="Update Firmware ESP32 Nirkabel (OTA)"
           >
-            <UploadCloud size={13} />
+            <UploadCloud size={13} style={{ flexShrink: 0 }} />
             <span>OTA Update</span>
           </button>
 
@@ -1007,42 +1574,193 @@ const Dashboard = () => {
             KONTROL UTAMA
           </div>
 
+          {/* Card 0: Industrial Operating Mode Switcher (Safety Interlock) */}
+          <div 
+            className="section-card" 
+            style={{ 
+              border: isAutonomous ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid rgba(59, 130, 246, 0.4)',
+              background: isAutonomous ? 'rgba(245, 158, 11, 0.03)' : 'rgba(59, 130, 246, 0.03)',
+              boxShadow: isAutonomous ? '0 0 14px rgba(245, 158, 11, 0.08)' : '0 0 14px rgba(59, 130, 246, 0.06)',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                <Shield size={13} style={{ color: isAutonomous ? '#f59e0b' : '#3b82f6' }} />
+                MODE OPERASI
+              </span>
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontWeight: 800,
+                  letterSpacing: '0.5px',
+                  whiteSpace: 'nowrap',
+                  background: isAutonomous ? 'rgba(245, 158, 11, 0.18)' : 'rgba(59, 130, 246, 0.18)',
+                  color: isAutonomous ? '#f59e0b' : '#60a5fa',
+                  border: isAutonomous ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)'
+                }}
+              >
+                {isAutonomous ? 'AUTO' : 'MANUAL'}
+              </span>
+            </div>
+
+            {/* Segmented Industrial Switch */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '6px',
+              background: 'rgba(0, 0, 0, 0.25)',
+              padding: '4px',
+              borderRadius: '6px',
+              border: '1px solid var(--border-color)',
+              marginTop: '4px'
+            }}>
+              <button
+                type="button"
+                className="clean-btn"
+                style={{
+                  padding: '8px 4px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  background: !isAutonomous ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'transparent',
+                  borderColor: !isAutonomous ? '#3b82f6' : 'transparent',
+                  color: !isAutonomous ? '#ffffff' : 'var(--text-secondary)',
+                  boxShadow: !isAutonomous ? '0 2px 8px rgba(37, 99, 235, 0.35)' : 'none',
+                  cursor: 'pointer',
+                  borderRadius: '5px'
+                }}
+                onClick={() => handleSetMode('MANUAL')}
+              >
+                <Sliders size={13} />
+                <span>MANUAL</span>
+              </button>
+
+              <button
+                type="button"
+                className="clean-btn"
+                style={{
+                  padding: '8px 4px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  background: isAutonomous ? 'linear-gradient(135deg, #d97706, #b45309)' : 'transparent',
+                  borderColor: isAutonomous ? '#f59e0b' : 'transparent',
+                  color: isAutonomous ? '#ffffff' : 'var(--text-secondary)',
+                  boxShadow: isAutonomous ? '0 2px 8px rgba(217, 119, 6, 0.4)' : 'none',
+                  cursor: 'pointer',
+                  borderRadius: '5px'
+                }}
+                onClick={() => handleSetMode('AUTO')}
+              >
+                <Play size={13} />
+                <span>AUTO</span>
+              </button>
+            </div>
+
+            {/* Industrial Safety Interlock Callout */}
+            <div style={{
+              marginTop: '6px',
+              padding: '6px 8px',
+              borderRadius: '5px',
+              fontSize: '0.67rem',
+              lineHeight: '1.4',
+              background: isAutonomous ? 'rgba(245, 158, 11, 0.08)' : 'rgba(59, 130, 246, 0.08)',
+              border: isAutonomous ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)',
+              color: 'var(--text-secondary)'
+            }}>
+              {isAutonomous ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#f59e0b', fontWeight: 700, marginBottom: '2px' }}>
+                    <AlertTriangle size={12} />
+                    <span>INTERLOCK KEAMANAN AKTIF</span>
+                  </div>
+                  <span>
+                    Sensor Proximity (A: Pin 53, B: Pin 51, Conveyor: Pin 2) aktif. Tombol manual dikunci demi keamanan operator.
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#60a5fa', fontWeight: 700, marginBottom: '2px' }}>
+                    <CheckCircle size={12} />
+                    <span>SENSOR PROXIMITY DINONAKTIFKAN</span>
+                  </div>
+                  <span>
+                    Sensor diblokir di firmware (100% aman). Bebas melakukan jogging manual, kalibrasi koordinat, & uji pompa.
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Card 1: Quick Command Grid */}
           <div className="section-card">
-            <div className="section-title">
-              AKSI CEPAT
+            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>AKSI CEPAT</span>
+              {isAutonomous && (
+                <span style={{ fontSize: '0.62rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.35)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700, letterSpacing: '0.3px' }}>
+                  TERKUNCI (AUTO)
+                </span>
+              )}
             </div>
             <div className="clean-btn-grid">
-              <button className="clean-btn primary" onClick={() => sendCommand('HOME')}>
+              <button 
+                className="clean-btn primary" 
+                onClick={() => sendCommand('HOME')}
+                disabled={isAutonomous}
+              >
                 HOME
               </button>
               <button
-                className={`clean-btn ${relayActive ? 'primary' : 'warning'}`}
+                className={`clean-btn ${gripState === 'TIUP' ? 'primary' : ''}`}
                 onClick={() => {
+                  setGripState('TIUP');
                   setRelayActive(true);
-                  sendCommand('HISAP');
+                  sendCommand('TIUP');
                 }}
+                disabled={isAutonomous}
+                title="Tiup Soft Gripper untuk mengambil barang"
               >
-                HISAP
+                TIUP (AMBIL)
               </button>
               <button
-                className="clean-btn"
+                className={`clean-btn ${gripState === 'HISAP' ? 'warning' : ''}`}
                 onClick={() => {
+                  setGripState('HISAP');
                   setRelayActive(false);
-                  sendCommand('LEPAS');
+                  sendCommand('HISAP');
                 }}
+                disabled={isAutonomous}
+                title="Hisap Soft Gripper untuk melepas barang"
               >
-                LEPAS
+                HISAP (LEPAS)
               </button>
-              <button className="clean-btn primary" onClick={handleStartA}>
+              <button 
+                className="clean-btn success" 
+                onClick={handleStartA}
+                disabled={isAutonomous}
+              >
                 START A
               </button>
-              <button className="clean-btn primary" onClick={handleStartB}>
+              <button 
+                className="clean-btn success" 
+                onClick={handleStartB}
+                disabled={isAutonomous}
+              >
                 START B
               </button>
               <button 
                 className="clean-btn" 
                 onClick={() => sendCommand('0 0 -200')}
+                disabled={isAutonomous}
                 title="Pindah cepat ke posisi tengah siap kerja (0, 0, -200)"
               >
                 STANDBY
@@ -1051,15 +1769,24 @@ const Dashboard = () => {
 
             <div style={{ display: 'flex', gap: '4px', marginTop: '3px' }}>
               <button 
-                className="clean-btn danger" 
+                className={`clean-btn ${isEmergencyActive ? 'primary' : 'danger'}`}
                 onClick={() => sendCommand('EMG')} 
-                style={{ flex: 1, padding: '6px 2px', fontWeight: 700 }}
+                style={{ 
+                  flex: 1, 
+                  padding: '6px 2px', 
+                  fontWeight: 700,
+                  backgroundColor: isEmergencyActive ? '#10b981' : undefined,
+                  borderColor: isEmergencyActive ? '#059669' : undefined,
+                  color: isEmergencyActive ? '#ffffff' : undefined
+                }}
+                title={isEmergencyActive ? "Lepas Mode Darurat & Balik Home Otomatis" : "Emergency Stop (Hentikan Robot Seketika)"}
               >
-                EMG
+                {isEmergencyActive ? "RESET & HOME" : "EMG"}
               </button>
               <button 
                 className="clean-btn primary" 
                 onClick={() => sendCommand(`${pos.x} ${pos.y} -200`)} 
+                disabled={isAutonomous}
                 style={{ flex: 1, padding: '6px 2px', fontSize: '0.72rem' }}
                 title="Angkat lengan ke posisi aman Z = -200"
               >
@@ -1068,6 +1795,7 @@ const Dashboard = () => {
               <button 
                 className="clean-btn" 
                 onClick={() => sendCommand('HOME')} 
+                disabled={isAutonomous}
                 style={{ flex: 1, padding: '6px 2px' }}
               >
                 RESET
@@ -1075,63 +1803,376 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Card 2: Suction Cup (Vakum) & Sensor Autonomy */}
+          {/* Card 2: Soft Robotic Gripper & Sensor Autonomy */}
           <div className="section-card">
             <div className="section-title">
-              <span>SENSOR & DINAMO HISAP</span>
-              <button
-                className={`clean-btn ${isAutonomous ? 'primary' : ''}`}
-                style={{ padding: '3px 8px', fontSize: '0.7rem' }}
-                onClick={() => {
-                  const newState = !isAutonomous;
-                  setIsAutonomous(newState);
-                  localStorage.setItem('delta_auto_mode', newState);
-                  sendCommand(`SET_AUTO ${newState ? 'ON' : 'OFF'}`);
-                }}
-              >
-                {isAutonomous ? 'AUTO ON' : 'AUTO OFF'}
-              </button>
+              <span>SOFT GRIPPER (L298N)</span>
+              <span className="slider-value-chip" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
+                {gripState === 'TIUP' ? 'TIUP' : gripState === 'HISAP' ? 'HISAP' : 'NETRAL'}
+              </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Suction Cup (Vakum D12):</span>
-                <span className="slider-value-chip" style={{ color: relayActive ? 'var(--accent-color)' : 'var(--text-muted)' }}>
-                  {relayActive ? 'AKTIF (ON)' : 'STANDBY (OFF)'}
+                <span style={{ color: 'var(--text-secondary)' }}>Status Soft Gripper (L298N):</span>
+                <span
+                  className="slider-value-chip"
+                  style={{
+                    color: gripState === 'TIUP' ? 'var(--accent-color)' : gripState === 'HISAP' ? '#f59e0b' : 'var(--text-muted)'
+                  }}
+                >
+                  {gripState === 'TIUP' ? 'TIUP (AMBIL)' : gripState === 'HISAP' ? 'HISAP (LEPAS)' : 'NETRAL / OFF'}
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+              {/* Action Buttons */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px' }}>
                 <button
-                  className={`clean-btn ${relayActive ? 'primary' : ''}`}
-                  style={{ padding: '8px', fontSize: '0.75rem', fontWeight: 600 }}
+                  className={`clean-btn ${gripState === 'TIUP' ? 'primary' : ''}`}
+                  style={{ padding: '8px 4px', fontSize: '0.72rem', fontWeight: 600 }}
                   onClick={() => {
+                    setGripState('TIUP');
                     setRelayActive(true);
+                    sendCommand('TIUP');
+                  }}
+                  disabled={isAutonomous}
+                  title="Tiup Pompa 1 (P23/P25) untuk mencengkeram barang"
+                >
+                  TIUP (AMBIL)
+                </button>
+                <button
+                  className={`clean-btn ${gripState === 'HISAP' ? 'warning' : ''}`}
+                  style={{ padding: '8px 4px', fontSize: '0.72rem', fontWeight: 600 }}
+                  onClick={() => {
+                    setGripState('HISAP');
+                    setRelayActive(false);
                     sendCommand('HISAP');
                   }}
+                  disabled={isAutonomous}
+                  title="Hisap Pompa 2 (P27/P29) untuk melepas barang"
                 >
-                  HISAP (ON)
+                  HISAP (LEPAS)
                 </button>
                 <button
                   className="clean-btn"
-                  style={{ padding: '8px', fontSize: '0.75rem' }}
+                  style={{ padding: '8px 4px', fontSize: '0.72rem' }}
                   onClick={() => {
+                    setGripState('NETRAL');
                     setRelayActive(false);
-                    sendCommand('LEPAS');
+                    sendCommand('STOP_PUMP');
                   }}
+                  disabled={isAutonomous}
+                  title="Matikan kedua pompa (Netral)"
                 >
-                  BUANG (OFF)
+                  STOP
                 </button>
               </div>
 
+              {/* Timing Controls for Tiup and Hisap (1 - 10 Detik) */}
+              <div style={{ background: 'var(--card-bg, rgba(255,255,255,0.03))', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>WAKTU TIUP & HISAP</span>
+                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block' }}>Rentang: 1 - 10 Detik (1000 - 10000 ms)</span>
+                  </div>
+                  <button
+                    className="clean-btn primary"
+                    style={{ padding: '3px 10px', fontSize: '0.68rem', fontWeight: 600 }}
+                    onClick={async () => {
+                      localStorage.setItem('delta_grip_tiup', gripTiupTime);
+                      localStorage.setItem('delta_grip_hisap', gripHisapTime);
+                      localStorage.setItem('delta_grip_expand', gripExpandTime);
+                      localStorage.setItem('delta_grip_hold_cont', gripHoldContinuous);
+
+                      await sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`);
+                      await sleep(100);
+                      await sendCommand(`SET_GRIP_HOLD ${gripHoldContinuous ? 1 : 0}`);
+                      await sleep(100);
+                      await sendCommand(`SAVE_CONFIG`);
+                      setLogs(prev => [...prev, `[GRIPPER] Parameter waktu tersimpan permanen ke EEPROM: Tiup=${gripTiupTime}ms | Hisap=${gripHisapTime}ms | Pre-Expand=${gripExpandTime}ms | Mode=${gripHoldContinuous ? 'Tiup Penuh Terus' : 'Hemat Daya'}`]);
+                    }}
+                    disabled={isAutonomous}
+                    title="Kirim dan simpan permanen waktu tiup, hisap, pre-expand & mode ke EEPROM Arduino Mega"
+                  >
+                    Simpan Timing
+                  </button>
+                </div>
+
+                {/* Mode Tiup Selama Membawa Barang */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '6px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      Mode Tiup Saat Bawa Barang:
+                    </span>
+                    <span style={{ fontSize: '0.64rem', color: gripHoldContinuous ? 'var(--accent-color)' : '#f59e0b', fontWeight: 700 }}>
+                      {gripHoldContinuous ? 'TIUP AKTIF PENUH TERUS' : 'HEMAT DAYA (55%)'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                    <button
+                      type="button"
+                      disabled={isAutonomous}
+                      onClick={async () => {
+                        setGripHoldContinuous(true);
+                        localStorage.setItem('delta_grip_hold_cont', 'true');
+                        await sendCommand('SET_GRIP_HOLD 1');
+                      }}
+                      style={{
+                        padding: '4px 6px',
+                        fontSize: '0.65rem',
+                        fontWeight: gripHoldContinuous ? 700 : 500,
+                        borderRadius: '4px',
+                        border: '1px solid ' + (gripHoldContinuous ? 'var(--accent-color)' : 'var(--border-color)'),
+                        background: gripHoldContinuous ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)',
+                        color: gripHoldContinuous ? '#fff' : 'var(--text-secondary)',
+                        cursor: isAutonomous ? 'not-allowed' : 'pointer'
+                      }}
+                      title="Pompa 1 Tiup tetap aktif menyala 100% penuh sepanjang perjalanan membawa benda dari Pick ke Drop agar benda terkunci kuat"
+                    >
+                      ✓ Tiup Aktif Penuh Terus
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isAutonomous}
+                      onClick={async () => {
+                        setGripHoldContinuous(false);
+                        localStorage.setItem('delta_grip_hold_cont', 'false');
+                        await sendCommand('SET_GRIP_HOLD 0');
+                      }}
+                      style={{
+                        padding: '4px 6px',
+                        fontSize: '0.65rem',
+                        fontWeight: !gripHoldContinuous ? 700 : 500,
+                        borderRadius: '4px',
+                        border: '1px solid ' + (!gripHoldContinuous ? '#f59e0b' : 'var(--border-color)'),
+                        background: !gripHoldContinuous ? '#f59e0b' : 'rgba(255,255,255,0.03)',
+                        color: !gripHoldContinuous ? '#000' : 'var(--text-secondary)',
+                        cursor: isAutonomous ? 'not-allowed' : 'pointer'
+                      }}
+                      title="Pompa 1 diturunkan ke 55% PWM saat meluncur untuk menghemat listrik catu daya"
+                    >
+                      Mode Hemat Daya (55%)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Slider Tiup (Ambil) */}
+                <div className="slider-container" style={{ margin: '1px 0' }}>
+                  <div className="slider-labels" style={{ fontSize: '0.68rem' }}>
+                    <span style={{ fontWeight: 600 }}>Waktu Tiup (Ambil)</span>
+                    <span className="slider-value-chip" style={{ fontWeight: 700, minWidth: '70px', textAlign: 'center' }}>
+                      {(gripTiupTime / 1000).toFixed(1)} s ({gripTiupTime} ms)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1000" max="10000" step="100"
+                    value={gripTiupTime}
+                    disabled={isAutonomous}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      setGripTiupTime(v);
+                      localStorage.setItem('delta_grip_tiup', v);
+                    }}
+                    onMouseUp={() => sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`)}
+                    onTouchEnd={() => sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`)}
+                  />
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
+                    {[1000, 2000, 3000, 4000, 5000, 8000, 10000].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={isAutonomous}
+                        onClick={() => {
+                          setGripTiupTime(t);
+                          localStorage.setItem('delta_grip_tiup', t);
+                          sendCommand(`SET_GRIP_TIME ${t} ${gripHisapTime} ${gripExpandTime}`);
+                        }}
+                        style={{
+                          fontSize: '0.6rem',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          border: '1px solid var(--border-color)',
+                          background: gripTiupTime === t ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)',
+                          color: gripTiupTime === t ? '#fff' : 'var(--text-secondary)',
+                          cursor: isAutonomous ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {t / 1000}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Slider Hisap (Lepas) */}
+                <div className="slider-container" style={{ margin: '1px 0' }}>
+                  <div className="slider-labels" style={{ fontSize: '0.68rem' }}>
+                    <span style={{ fontWeight: 600 }}>Waktu Hisap (Lepas)</span>
+                    <span className="slider-value-chip" style={{ fontWeight: 700, minWidth: '70px', textAlign: 'center' }}>
+                      {(gripHisapTime / 1000).toFixed(1)} s ({gripHisapTime} ms)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1000" max="10000" step="100"
+                    value={gripHisapTime}
+                    disabled={isAutonomous}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      setGripHisapTime(v);
+                      localStorage.setItem('delta_grip_hisap', v);
+                    }}
+                    onMouseUp={() => sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`)}
+                    onTouchEnd={() => sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`)}
+                  />
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
+                    {[1000, 2000, 3000, 4000, 5000, 8000, 10000].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={isAutonomous}
+                        onClick={() => {
+                          setGripHisapTime(t);
+                          localStorage.setItem('delta_grip_hisap', t);
+                          sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${t} ${gripExpandTime}`);
+                        }}
+                        style={{
+                          fontSize: '0.6rem',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          border: '1px solid var(--border-color)',
+                          background: gripHisapTime === t ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)',
+                          color: gripHisapTime === t ? '#fff' : 'var(--text-secondary)',
+                          cursor: isAutonomous ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {t / 1000}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Slider Pre-Expand (Mengembang Sebelum Ambil) */}
+                <div className="slider-container" style={{ margin: '1px 0' }}>
+                  <div className="slider-labels" style={{ fontSize: '0.68rem' }}>
+                    <span style={{ fontWeight: 600 }}>Pre-Expand (Hisap Buka Jari Sebelum Ambil)</span>
+                    <span className="slider-value-chip" style={{ fontWeight: 700, minWidth: '70px', textAlign: 'center' }}>
+                      {(gripExpandTime / 1000).toFixed(1)} s ({gripExpandTime} ms)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="200" max="3000" step="100"
+                    value={gripExpandTime}
+                    disabled={isAutonomous}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      setGripExpandTime(v);
+                      localStorage.setItem('delta_grip_expand', v);
+                    }}
+                    onMouseUp={() => sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`)}
+                    onTouchEnd={() => sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${gripExpandTime}`)}
+                  />
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
+                    {[300, 500, 800, 1000, 1500, 2000].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={isAutonomous}
+                        onClick={() => {
+                          setGripExpandTime(t);
+                          localStorage.setItem('delta_grip_expand', t);
+                          sendCommand(`SET_GRIP_TIME ${gripTiupTime} ${gripHisapTime} ${t}`);
+                        }}
+                        style={{
+                          fontSize: '0.6rem',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          border: '1px solid var(--border-color)',
+                          background: gripExpandTime === t ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)',
+                          color: gripExpandTime === t ? '#fff' : 'var(--text-secondary)',
+                          cursor: isAutonomous ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {t >= 1000 ? (t / 1000) + 's' : t + 'ms'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pump Speed Controls (PWM) */}
+              <div style={{ background: 'var(--card-bg, rgba(255,255,255,0.03))', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>KECEPATAN POMPA (PWM)</span>
+                  <button
+                    className="clean-btn primary"
+                    style={{ padding: '2px 8px', fontSize: '0.65rem' }}
+                    onClick={async () => {
+                      localStorage.setItem('delta_pump1_speed', pump1Speed);
+                      localStorage.setItem('delta_pump2_speed', pump2Speed);
+                      await sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`);
+                      await sleep(100);
+                      await sendCommand(`SAVE_CONFIG`);
+                      setLogs(prev => [...prev, `[GRIPPER] Kecepatan pompa tersimpan permanen ke EEPROM: Pompa 1 (Tiup)=${pump1Speed} | Pompa 2 (Hisap)=${pump2Speed}`]);
+                    }}
+                    disabled={isAutonomous}
+                    title="Kirim parameter kecepatan pompa (PWM) dan simpan permanen ke EEPROM Arduino Mega"
+                  >
+                    Simpan Kecepatan
+                  </button>
+                </div>
+
+                <div className="slider-container" style={{ margin: '2px 0' }}>
+                  <div className="slider-labels" style={{ fontSize: '0.68rem' }}>
+                    <span>Pompa 1 Tiup (Ambil / D45)</span>
+                    <span className="slider-value-chip">{pump1Speed} ({Math.round((pump1Speed / 255) * 100)}%)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50" max="255" step="5"
+                    value={pump1Speed}
+                    disabled={isAutonomous}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      setPump1Speed(v);
+                      localStorage.setItem('delta_pump1_speed', v);
+                    }}
+                    onMouseUp={() => sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`)}
+                    onTouchEnd={() => sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`)}
+                  />
+                </div>
+
+                <div className="slider-container" style={{ margin: '2px 0' }}>
+                  <div className="slider-labels" style={{ fontSize: '0.68rem' }}>
+                    <span>Pompa 2 Hisap (Lepas / D12)</span>
+                    <span className="slider-value-chip">{pump2Speed} ({Math.round((pump2Speed / 255) * 100)}%)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50" max="255" step="5"
+                    value={pump2Speed}
+                    disabled={isAutonomous}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      setPump2Speed(v);
+                      localStorage.setItem('delta_pump2_speed', v);
+                    }}
+                    onMouseUp={() => sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`)}
+                    onTouchEnd={() => sendCommand(`SET_GRIP_SPEED ${pump1Speed} ${pump2Speed}`)}
+                  />
+                </div>
+              </div>
+
               {/* Sensor Diagnostics */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '6px', borderTop: '1px solid var(--border-color)', fontSize: '0.72rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px', paddingTop: '6px', borderTop: '1px solid var(--border-color)', fontSize: '0.72rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Sensor Proximity (A:D53, B:D51):</span>
                 <button
                   className="clean-btn"
                   style={{ padding: '2px 8px', fontSize: '0.68rem' }}
                   title="Uji status deteksi pin sensor fisik saat ini"
                   onClick={() => sendCommand('TEST_SENSOR')}
+                  disabled={isAutonomous}
                 >
                   CEK SENSOR
                 </button>
@@ -1228,6 +2269,7 @@ const Dashboard = () => {
                   <button
                     key={s}
                     className={`step-btn ${jogStep === s ? 'active' : ''}`}
+                    disabled={isAutonomous}
                     onClick={() => {
                       setJogStep(s);
                       localStorage.setItem('delta_jog_step', s);
@@ -1240,30 +2282,30 @@ const Dashboard = () => {
             </div>
 
             <form onSubmit={handleManualMove} className="coord-form">
-              <input type="number" name="x" placeholder="X" required defaultValue={pos.x} />
-              <input type="number" name="y" placeholder="Y" required defaultValue={pos.y} />
-              <input type="number" name="z" placeholder="Z" required defaultValue={pos.z} />
-              <button type="submit">GO</button>
+              <input type="number" name="x" placeholder="X" required defaultValue={pos.x} disabled={isAutonomous} />
+              <input type="number" name="y" placeholder="Y" required defaultValue={pos.y} disabled={isAutonomous} />
+              <input type="number" name="z" placeholder="Z" required defaultValue={pos.z} disabled={isAutonomous} />
+              <button type="submit" disabled={isAutonomous}>GO</button>
             </form>
 
             {/* D-Pad Jogging */}
             <div className="jog-container" style={{ marginTop: '2px' }}>
-              <button className="jog-btn" onClick={() => sendCommand(`${pos.x - jogStep} ${pos.y} ${pos.z}`)}>
+              <button className="jog-btn" disabled={isAutonomous} onClick={() => sendCommand(`${pos.x - jogStep} ${pos.y} ${pos.z}`)}>
                 X-
               </button>
-              <button className="jog-btn" onClick={() => sendCommand(`${pos.x} ${pos.y - jogStep} ${pos.z}`)}>
+              <button className="jog-btn" disabled={isAutonomous} onClick={() => sendCommand(`${pos.x} ${pos.y - jogStep} ${pos.z}`)}>
                 Y+
               </button>
-              <button className="jog-btn" onClick={() => sendCommand(`${pos.x + jogStep} ${pos.y} ${pos.z}`)}>
+              <button className="jog-btn" disabled={isAutonomous} onClick={() => sendCommand(`${pos.x + jogStep} ${pos.y} ${pos.z}`)}>
                 X+
               </button>
-              <button className="jog-btn" onClick={() => sendCommand(`${pos.x} ${pos.y} ${pos.z + jogStep}`)}>
+              <button className="jog-btn" disabled={isAutonomous} onClick={() => sendCommand(`${pos.x} ${pos.y} ${pos.z + jogStep}`)}>
                 Z+
               </button>
-              <button className="jog-btn" onClick={() => sendCommand(`${pos.x} ${pos.y + jogStep} ${pos.z}`)}>
+              <button className="jog-btn" disabled={isAutonomous} onClick={() => sendCommand(`${pos.x} ${pos.y + jogStep} ${pos.z}`)}>
                 Y-
               </button>
-              <button className="jog-btn" onClick={() => sendCommand(`${pos.x} ${pos.y} ${pos.z - jogStep}`)}>
+              <button className="jog-btn" disabled={isAutonomous} onClick={() => sendCommand(`${pos.x} ${pos.y} ${pos.z - jogStep}`)}>
                 Z-
               </button>
             </div>
@@ -1273,6 +2315,7 @@ const Dashboard = () => {
               <button
                 className={`clean-btn ${isKeyJogActive ? 'primary' : ''}`}
                 style={{ padding: '2px 8px', fontSize: '0.68rem' }}
+                disabled={isAutonomous}
                 onClick={() => {
                   const next = !isKeyJogActive;
                   setIsKeyJogActive(next);
@@ -1294,6 +2337,7 @@ const Dashboard = () => {
               <button
                 className="clean-btn primary"
                 style={{ padding: '2px 8px', fontSize: '0.68rem' }}
+                disabled={isAutonomous}
                 onClick={() => {
                   sendCommand(`SET_SPEED ${speedVal}`);
                   sendCommand(`SET_ACCEL ${accelVal}`);
@@ -1312,6 +2356,7 @@ const Dashboard = () => {
                 type="range"
                 min="100" max="1200" step="50"
                 value={speedVal}
+                disabled={isAutonomous}
                 onChange={(e) => {
                   const v = parseInt(e.target.value);
                   setSpeedVal(v);
@@ -1330,6 +2375,7 @@ const Dashboard = () => {
                 type="range"
                 min="100" max="1000" step="50"
                 value={accelVal}
+                disabled={isAutonomous}
                 onChange={(e) => {
                   const v = parseInt(e.target.value);
                   setAccelVal(v);
@@ -1350,7 +2396,7 @@ const Dashboard = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
               <button
                 className="clean-btn"
-                disabled={isPlayingPattern}
+                disabled={isAutonomous || isPlayingPattern}
                 onClick={() => runTestPattern('circle')}
                 style={{ padding: '6px 2px', fontSize: '0.68rem' }}
               >
@@ -1358,7 +2404,7 @@ const Dashboard = () => {
               </button>
               <button
                 className="clean-btn"
-                disabled={isPlayingPattern}
+                disabled={isAutonomous || isPlayingPattern}
                 onClick={() => runTestPattern('square')}
                 style={{ padding: '6px 2px', fontSize: '0.68rem' }}
               >
@@ -1366,7 +2412,7 @@ const Dashboard = () => {
               </button>
               <button
                 className="clean-btn"
-                disabled={isPlayingPattern}
+                disabled={isAutonomous || isPlayingPattern}
                 onClick={() => runTestPattern('triangle')}
                 style={{ padding: '6px 2px', fontSize: '0.68rem' }}
               >
@@ -1490,12 +2536,119 @@ const Dashboard = () => {
               </Suspense>
             </Canvas>
           </div>
+
+          {/* VS CODE STYLE INTEGRATED ADJUSTABLE TERMINAL */}
+          <div 
+            className="vscode-terminal-panel"
+            style={{
+              height: isTerminalCollapsed ? '34px' : `${terminalHeight}px`,
+              cursor: isDraggingTerminal ? 'ns-resize' : 'default'
+            }}
+          >
+            {/* Splitter Resizer Handle Bar */}
+            <div 
+              className={`vscode-terminal-resizer ${isDraggingTerminal ? 'active' : ''}`}
+              title="Tarik ke atas/bawah untuk atur ukuran (Klik 2x untuk minimize/restore)"
+              onMouseDown={(e) => { e.preventDefault(); handleStartResize(e.clientY); }}
+              onTouchStart={(e) => { if (e.touches && e.touches[0]) handleStartResize(e.touches[0].clientY); }}
+              onDoubleClick={handleToggleTerminalCollapse}
+            />
+
+            {/* VS Code Style Header Tabs & Actions */}
+            <div className="vscode-terminal-header" onDoubleClick={handleToggleTerminalCollapse}>
+              <div className="vscode-terminal-tabs">
+                <div className="vscode-terminal-tab active">
+                  <TerminalIcon size={13} style={{ color: 'var(--accent-color)' }} />
+                  <span>TERMINAL SERIAL & ROBOT LOGS</span>
+                  <span style={{ 
+                    fontSize: '0.62rem', 
+                    background: 'rgba(255,255,255,0.08)', 
+                    padding: '1px 6px', 
+                    borderRadius: '10px',
+                    fontFamily: 'monospace' 
+                  }}>
+                    {logs.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="vscode-terminal-actions">
+                <button 
+                  className="vscode-action-btn"
+                  title="Bersihkan Log (Clear)"
+                  onClick={() => setLogs(["[SYSTEM] Log dibersihkan."])}
+                >
+                  <Trash2 size={13} />
+                </button>
+                <button 
+                  className="vscode-action-btn"
+                  title={isTerminalMaximized ? "Restore Ukuran" : "Perbesar Penuh (Maximize)"}
+                  onClick={handleToggleTerminalMaximize}
+                >
+                  {isTerminalMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                </button>
+                <button 
+                  className="vscode-action-btn"
+                  title={isTerminalCollapsed ? "Buka Terminal" : "Sembunyikan Terminal (Minimize)"}
+                  onClick={handleToggleTerminalCollapse}
+                >
+                  {isTerminalCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Terminal Body & Prompt */}
+            {!isTerminalCollapsed && (
+              <div className="vscode-terminal-body">
+                <div className="vscode-terminal-logs">
+                  {logs.map((log, i) => {
+                    let extraClass = '';
+                    if (log.includes('ERROR') || log.includes('Gagal')) extraClass = ' error';
+                    else if (log.startsWith('>')) extraClass = ' cmd';
+                    else if (log.includes('[ROBOT]') || log.includes('[MEGA]')) extraClass = ' robot';
+                    return (
+                      <div key={i} className={`log-line${extraClass}`}>{log}</div>
+                    );
+                  })}
+                  <div ref={logsEndRef} />
+                </div>
+
+                {/* VS Code Command Input Line */}
+                <div className="vscode-terminal-input-bar">
+                  <span className="prompt" style={{ color: 'var(--accent-color)', fontWeight: 700 }}>{">"}</span>
+                  <input
+                    type="text"
+                    className="terminal-input"
+                    value={terminalInputText}
+                    onChange={(e) => setTerminalInputText(e.target.value)}
+                    placeholder="Ketik perintah (HOME, TIUP, HISAP, STARTA, STARTB, X Y Z, SET_SPEED 800)..."
+                    onKeyDown={handleTerminalKeyDown}
+                  />
+                  <button
+                    className="clean-btn primary"
+                    style={{ padding: '3px 10px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onClick={() => {
+                      const val = terminalInputText.trim();
+                      if (val) {
+                        sendCommand(val);
+                        setCmdHistory(prev => [val, ...prev.filter(item => item !== val).slice(0, 30)]);
+                        setTerminalInputText('');
+                      }
+                    }}
+                  >
+                    <Send size={11} />
+                    <span>Kirim</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </main>
 
-        {/* RIGHT PANEL: COORDINATES & TERMINAL */}
+        {/* RIGHT PANEL: COORDINATES & SEQUENCING */}
         <aside className="panel right-panel">
           <div className="panel-header-title">
-            SEKUENSI & LOG SISTEM
+            SEKUENSI & TEMPLATE KOORDINAT
           </div>
 
           {/* Card 1: Templates */}
@@ -1503,7 +2656,7 @@ const Dashboard = () => {
             <div className="section-title">
               TEMPLATE KOORDINAT
             </div>
-            <select onChange={handleSelectTemplate} value={newTemplateName || ""}>
+            <select onChange={handleSelectTemplate} value={newTemplateName || ""} disabled={isAutonomous}>
               <option value="" disabled>-- Pilih Template Koordinat ({templates.length} Tersedia) --</option>
               {templates.map(t => (
                 <option key={t.id || t.template_name} value={t.template_name}>
@@ -1517,12 +2670,13 @@ const Dashboard = () => {
                 placeholder="Nama Template Baru"
                 value={newTemplateName}
                 onChange={(e) => setNewTemplateName(e.target.value)}
+                disabled={isAutonomous}
                 style={{ flexGrow: 1 }}
               />
-              <button className="clean-btn primary" onClick={handleSaveTemplate} style={{ padding: '6px 10px' }}>
+              <button className="clean-btn primary" onClick={handleSaveTemplate} disabled={isAutonomous} style={{ padding: '6px 10px' }}>
                 Simpan
               </button>
-              <button className="clean-btn danger" onClick={handleDeleteTemplate} style={{ padding: '6px 10px' }}>
+              <button className="clean-btn danger" onClick={handleDeleteTemplate} disabled={isAutonomous} style={{ padding: '6px 10px' }}>
                 Hapus
               </button>
             </div>
@@ -1530,7 +2684,7 @@ const Dashboard = () => {
             <button
               className="clean-btn primary"
               onClick={handleApplyAllCoordinates}
-              disabled={isApplyingAll}
+              disabled={isAutonomous || isApplyingAll}
               style={{ width: '100%', marginTop: '6px', padding: '8px', fontWeight: 600 }}
             >
               {isApplyingAll ? 'Menerapkan ke Robot...' : 'Terapkan Semua Koordinat ke Robot'}
@@ -1539,25 +2693,27 @@ const Dashboard = () => {
             {/* Global Z-Offset Adjuster */}
             <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Koreksi Ketinggian Z (Global Offset):</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Koreksi Ketinggian Z (Global Offset) <span style={{ color: '#f59e0b', fontSize: '0.64rem' }}>[Batas: -400mm]</span>:
+                </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '3px' }}>
-                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} onClick={() => applyGlobalZOffset(-10)} title="Turunkan seluruh titik Z sebesar 10mm">
+                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} disabled={isAutonomous} onClick={() => applyGlobalZOffset(-10)} title="Turunkan seluruh titik Z sebesar 10mm">
                   -10mm
                 </button>
-                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} onClick={() => applyGlobalZOffset(-5)} title="Turunkan seluruh titik Z sebesar 5mm">
+                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} disabled={isAutonomous} onClick={() => applyGlobalZOffset(-5)} title="Turunkan seluruh titik Z sebesar 5mm">
                   -5mm
                 </button>
-                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} onClick={() => applyGlobalZOffset(-1)} title="Turunkan seluruh titik Z sebesar 1mm">
+                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} disabled={isAutonomous} onClick={() => applyGlobalZOffset(-1)} title="Turunkan seluruh titik Z sebesar 1mm">
                   -1mm
                 </button>
-                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} onClick={() => applyGlobalZOffset(1)} title="Naikkan seluruh titik Z sebesar 1mm">
+                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} disabled={isAutonomous} onClick={() => applyGlobalZOffset(1)} title="Naikkan seluruh titik Z sebesar 1mm">
                   +1mm
                 </button>
-                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} onClick={() => applyGlobalZOffset(5)} title="Naikkan seluruh titik Z sebesar 5mm">
+                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} disabled={isAutonomous} onClick={() => applyGlobalZOffset(5)} title="Naikkan seluruh titik Z sebesar 5mm">
                   +5mm
                 </button>
-                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} onClick={() => applyGlobalZOffset(10)} title="Naikkan seluruh titik Z sebesar 10mm">
+                <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '4px 1px' }} disabled={isAutonomous} onClick={() => applyGlobalZOffset(10)} title="Naikkan seluruh titik Z sebesar 10mm">
                   +10mm
                 </button>
               </div>
@@ -1572,6 +2728,7 @@ const Dashboard = () => {
                 className="clean-btn"
                 style={{ padding: '2px 6px', fontSize: '0.68rem' }}
                 onClick={handleStartA}
+                disabled={isAutonomous}
               >
                 Test Routine A
               </button>
@@ -1580,26 +2737,42 @@ const Dashboard = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                 <span>Titik Ambil (Pick A):</span>
-                <span style={{ color: 'var(--accent-color)', cursor: 'pointer' }} onClick={() => sendCommand(`${pickA.x} ${pickA.y} ${pickA.z}`)}>Gerak ke Pick A</span>
+                <span 
+                  style={{ 
+                    color: isAutonomous ? 'var(--text-muted)' : 'var(--accent-color)', 
+                    cursor: isAutonomous ? 'not-allowed' : 'pointer' 
+                  }} 
+                  onClick={() => !isAutonomous && sendCommand(`${pickA.x} ${pickA.y} ${pickA.z}`)}
+                >
+                  Gerak ke Pick A
+                </span>
               </div>
               <div className="coord-row">
-                <input type="number" value={pickA.x} onChange={e => { const v = { ...pickA, x: e.target.value }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }} placeholder="X" />
-                <input type="number" value={pickA.y} onChange={e => { const v = { ...pickA, y: e.target.value }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }} placeholder="Y" />
-                <input type="number" value={pickA.z} onChange={e => { const v = { ...pickA, z: e.target.value }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }} placeholder="Z" />
-                <button className="clean-btn action-btn" onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }}>GET</button>
-                <button className="clean-btn primary action-btn" onClick={() => { localStorage.setItem('delta_pickA', JSON.stringify(pickA)); sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`); }}>SET</button>
+                <input type="number" value={pickA.x} disabled={isAutonomous} onChange={e => { const v = { ...pickA, x: e.target.value }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }} placeholder="X" />
+                <input type="number" value={pickA.y} disabled={isAutonomous} onChange={e => { const v = { ...pickA, y: e.target.value }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }} placeholder="Y" />
+                <input type="number" value={pickA.z} disabled={isAutonomous} onChange={e => { const v = { ...pickA, z: e.target.value }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }} placeholder="Z" />
+                <button className="clean-btn action-btn" disabled={isAutonomous} onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setPickA(v); localStorage.setItem('delta_pickA', JSON.stringify(v)); }}>GET</button>
+                <button className="clean-btn primary action-btn" disabled={isAutonomous} onClick={async () => { localStorage.setItem('delta_pickA', JSON.stringify(pickA)); await sendCommand(`SET_A_PICK ${pickA.x} ${pickA.y} ${pickA.z}`); await sleep(50); await sendCommand('SAVE_CONFIG'); }}>SET</button>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                 <span>Titik Letak (Drop A):</span>
-                <span style={{ color: 'var(--accent-color)', cursor: 'pointer' }} onClick={() => sendCommand(`${dropA.x} ${dropA.y} ${dropA.z}`)}>Gerak ke Drop A</span>
+                <span 
+                  style={{ 
+                    color: isAutonomous ? 'var(--text-muted)' : 'var(--accent-color)', 
+                    cursor: isAutonomous ? 'not-allowed' : 'pointer' 
+                  }} 
+                  onClick={() => !isAutonomous && sendCommand(`${dropA.x} ${dropA.y} ${dropA.z}`)}
+                >
+                  Gerak ke Drop A
+                </span>
               </div>
               <div className="coord-row">
-                <input type="number" value={dropA.x} onChange={e => { const v = { ...dropA, x: e.target.value }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }} placeholder="X" />
-                <input type="number" value={dropA.y} onChange={e => { const v = { ...dropA, y: e.target.value }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }} placeholder="Y" />
-                <input type="number" value={dropA.z} onChange={e => { const v = { ...dropA, z: e.target.value }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }} placeholder="Z" />
-                <button className="clean-btn action-btn" onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }}>GET</button>
-                <button className="clean-btn primary action-btn" onClick={() => { localStorage.setItem('delta_dropA', JSON.stringify(dropA)); sendCommand(`SET_A_DROP ${dropA.x} ${dropA.y} ${dropA.z}`); }}>SET</button>
+                <input type="number" value={dropA.x} disabled={isAutonomous} onChange={e => { const v = { ...dropA, x: e.target.value }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }} placeholder="X" />
+                <input type="number" value={dropA.y} disabled={isAutonomous} onChange={e => { const v = { ...dropA, y: e.target.value }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }} placeholder="Y" />
+                <input type="number" value={dropA.z} disabled={isAutonomous} onChange={e => { const v = { ...dropA, z: e.target.value }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }} placeholder="Z" />
+                <button className="clean-btn action-btn" disabled={isAutonomous} onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setDropA(v); localStorage.setItem('delta_dropA', JSON.stringify(v)); }}>GET</button>
+                <button className="clean-btn primary action-btn" disabled={isAutonomous} onClick={async () => { localStorage.setItem('delta_dropA', JSON.stringify(dropA)); await sendCommand(`SET_A_DROP ${dropA.x} ${dropA.y} ${dropA.z}`); await sleep(50); await sendCommand('SAVE_CONFIG'); }}>SET</button>
               </div>
 
               {/* Step by Step Sequencer A */}
@@ -1608,23 +2781,23 @@ const Dashboard = () => {
                   Uji Langkah per Langkah (Profil A):
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('approach_pick', 'A')}>
-                    1. Atas Pick
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('approach_pick', 'A')}>
+                    1. Buka (Hisap)
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('pick_down', 'A')}>
-                    2. Ambil (Hisap)
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('pick_down', 'A')}>
+                    2. Jepit (Tiup)
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('pick_lift', 'A')}>
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('pick_lift', 'A')}>
                     3. Angkat
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('approach_drop', 'A')}>
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('approach_drop', 'A')}>
                     4. Atas Drop
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('drop_down', 'A')}>
-                    5. Letak (Buang)
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('drop_down', 'A')}>
+                    5. Lepas (Hisap)
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('drop_lift', 'A')}>
-                    6. Selesai
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('drop_lift', 'A')}>
+                    6. Home
                   </button>
                 </div>
               </div>
@@ -1639,6 +2812,7 @@ const Dashboard = () => {
                 className="clean-btn"
                 style={{ padding: '2px 6px', fontSize: '0.68rem' }}
                 onClick={handleStartB}
+                disabled={isAutonomous}
               >
                 Test Routine B
               </button>
@@ -1647,26 +2821,42 @@ const Dashboard = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                 <span>Titik Ambil (Pick B):</span>
-                <span style={{ color: 'var(--accent-color)', cursor: 'pointer' }} onClick={() => sendCommand(`${pickB.x} ${pickB.y} ${pickB.z}`)}>Gerak ke Pick B</span>
+                <span 
+                  style={{ 
+                    color: isAutonomous ? 'var(--text-muted)' : 'var(--accent-color)', 
+                    cursor: isAutonomous ? 'not-allowed' : 'pointer' 
+                  }} 
+                  onClick={() => !isAutonomous && sendCommand(`${pickB.x} ${pickB.y} ${pickB.z}`)}
+                >
+                  Gerak ke Pick B
+                </span>
               </div>
               <div className="coord-row">
-                <input type="number" value={pickB.x} onChange={e => { const v = { ...pickB, x: e.target.value }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }} placeholder="X" />
-                <input type="number" value={pickB.y} onChange={e => { const v = { ...pickB, y: e.target.value }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }} placeholder="Y" />
-                <input type="number" value={pickB.z} onChange={e => { const v = { ...pickB, z: e.target.value }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }} placeholder="Z" />
-                <button className="clean-btn action-btn" onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }}>GET</button>
-                <button className="clean-btn primary action-btn" onClick={() => { localStorage.setItem('delta_pickB', JSON.stringify(pickB)); sendCommand(`SET_B_PICK ${pickB.x} ${pickB.y} ${pickB.z}`); }}>SET</button>
+                <input type="number" value={pickB.x} disabled={isAutonomous} onChange={e => { const v = { ...pickB, x: e.target.value }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }} placeholder="X" />
+                <input type="number" value={pickB.y} disabled={isAutonomous} onChange={e => { const v = { ...pickB, y: e.target.value }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }} placeholder="Y" />
+                <input type="number" value={pickB.z} disabled={isAutonomous} onChange={e => { const v = { ...pickB, z: e.target.value }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }} placeholder="Z" />
+                <button className="clean-btn action-btn" disabled={isAutonomous} onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setPickB(v); localStorage.setItem('delta_pickB', JSON.stringify(v)); }}>GET</button>
+                <button className="clean-btn primary action-btn" disabled={isAutonomous} onClick={async () => { localStorage.setItem('delta_pickB', JSON.stringify(pickB)); await sendCommand(`SET_B_PICK ${pickB.x} ${pickB.y} ${pickB.z}`); await sleep(50); await sendCommand('SAVE_CONFIG'); }}>SET</button>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                 <span>Titik Letak (Drop B):</span>
-                <span style={{ color: 'var(--accent-color)', cursor: 'pointer' }} onClick={() => sendCommand(`${dropB.x} ${dropB.y} ${dropB.z}`)}>Gerak ke Drop B</span>
+                <span 
+                  style={{ 
+                    color: isAutonomous ? 'var(--text-muted)' : 'var(--accent-color)', 
+                    cursor: isAutonomous ? 'not-allowed' : 'pointer' 
+                  }} 
+                  onClick={() => !isAutonomous && sendCommand(`${dropB.x} ${dropB.y} ${dropB.z}`)}
+                >
+                  Gerak ke Drop B
+                </span>
               </div>
               <div className="coord-row">
-                <input type="number" value={dropB.x} onChange={e => { const v = { ...dropB, x: e.target.value }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }} placeholder="X" />
-                <input type="number" value={dropB.y} onChange={e => { const v = { ...dropB, y: e.target.value }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }} placeholder="Y" />
-                <input type="number" value={dropB.z} onChange={e => { const v = { ...dropB, z: e.target.value }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }} placeholder="Z" />
-                <button className="clean-btn action-btn" onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }}>GET</button>
-                <button className="clean-btn primary action-btn" onClick={() => { localStorage.setItem('delta_dropB', JSON.stringify(dropB)); sendCommand(`SET_B_DROP ${dropB.x} ${dropB.y} ${dropB.z}`); }}>SET</button>
+                <input type="number" value={dropB.x} disabled={isAutonomous} onChange={e => { const v = { ...dropB, x: e.target.value }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }} placeholder="X" />
+                <input type="number" value={dropB.y} disabled={isAutonomous} onChange={e => { const v = { ...dropB, y: e.target.value }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }} placeholder="Y" />
+                <input type="number" value={dropB.z} disabled={isAutonomous} onChange={e => { const v = { ...dropB, z: e.target.value }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }} placeholder="Z" />
+                <button className="clean-btn action-btn" disabled={isAutonomous} onClick={() => { const v = { x: pos.x, y: pos.y, z: pos.z }; setDropB(v); localStorage.setItem('delta_dropB', JSON.stringify(v)); }}>GET</button>
+                <button className="clean-btn primary action-btn" disabled={isAutonomous} onClick={async () => { localStorage.setItem('delta_dropB', JSON.stringify(dropB)); await sendCommand(`SET_B_DROP ${dropB.x} ${dropB.y} ${dropB.z}`); await sleep(50); await sendCommand('SAVE_CONFIG'); }}>SET</button>
               </div>
 
               {/* Step by Step Sequencer B */}
@@ -1675,59 +2865,26 @@ const Dashboard = () => {
                   Uji Langkah per Langkah (Profil B):
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('approach_pick', 'B')}>
-                    1. Atas Pick
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('approach_pick', 'B')}>
+                    1. Buka (Hisap)
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('pick_down', 'B')}>
-                    2. Ambil (Hisap)
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('pick_down', 'B')}>
+                    2. Jepit (Tiup)
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('pick_lift', 'B')}>
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('pick_lift', 'B')}>
                     3. Angkat
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('approach_drop', 'B')}>
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('approach_drop', 'B')}>
                     4. Atas Drop
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('drop_down', 'B')}>
-                    5. Letak (Buang)
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('drop_down', 'B')}>
+                    5. Lepas (Hisap)
                   </button>
-                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} onClick={() => executeStep('drop_lift', 'B')}>
-                    6. Selesai
+                  <button className="clean-btn" style={{ fontSize: '0.65rem', padding: '5px 2px' }} disabled={isAutonomous} onClick={() => executeStep('drop_lift', 'B')}>
+                    6. Home
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Card 4: Terminal */}
-          <div className="section-card" style={{ flexGrow: 1 }}>
-            <div className="section-title">
-              <span>TERMINAL LOG</span>
-              <button
-                onClick={() => setLogs(["[SYSTEM] Log dibersihkan."])}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.7rem', cursor: 'pointer' }}
-              >
-                Clear
-              </button>
-            </div>
-            <div className="terminal">
-              {logs.map((log, i) => (
-                <div key={i} className="log-line">{log}</div>
-              ))}
-              <div ref={logsEndRef} />
-            </div>
-            <div className="terminal-input-container">
-              <span className="prompt">{">"}</span>
-              <input
-                type="text"
-                className="terminal-input"
-                placeholder="Ketik perintah (HOME, CAPIT, LEPAS, STARTA, X Y Z)..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    sendCommand(e.target.value);
-                    e.target.value = '';
-                  }
-                }}
-              />
             </div>
           </div>
         </aside>
@@ -1761,9 +2918,59 @@ const Dashboard = () => {
                     className={`mode-btn ${connectionMode === 'backend' ? 'active' : ''}`}
                     onClick={() => handleSaveConnectionSettings('backend', espIp)}
                   >
-                    Backend Serial USB
+                    Backend Serial
+                  </button>
+                  <button
+                    className={`mode-btn ${connectionMode === 'usb' ? 'active' : ''}`}
+                    onClick={() => handleSaveConnectionSettings('usb', espIp)}
+                    title="Hubungkan langsung ke Arduino Mega via USB port browser (Web Serial API)"
+                  >
+                    USB Mega Langsung
                   </button>
                 </div>
+
+                {/* USB Direct Connection Card */}
+                {connectionMode === 'usb' && (
+                  <div className="config-card" style={{ marginTop: '14px', border: '1px solid rgba(168,85,247,0.4)' }}>
+                    <div className="config-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Usb size={15} style={{ color: '#a855f7' }} />
+                        USB Serial Langsung ke Arduino Mega
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: usbConnected ? 'var(--accent-color)' : '#f87171', fontWeight: 600 }}>
+                        {usbConnected ? 'TERHUBUNG' : 'TERPUTUS'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '6px 0 10px 0', lineHeight: 1.5 }}>
+                      Mode ini menghubungkan browser langsung ke port USB Arduino Mega 2560 tanpa perantara backend server. Cocok untuk demo offline atau jika teman ingin mencoba tanpa perlu ngrok.
+                    </p>
+                    <div style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '6px', padding: '8px 10px', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '10px', lineHeight: 1.5 }}>
+                      <strong style={{ color: '#a855f7' }}>Syarat:</strong> Gunakan Chrome atau Edge. Colokkan kabel USB Arduino Mega ke komputer ini. Pastikan tidak ada program Arduino IDE / backend yang sedang membuka COM port yang sama.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {!usbConnected ? (
+                        <button
+                          className="clean-btn primary"
+                          style={{ flex: 1, padding: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(168,85,247,0.2)', borderColor: '#a855f7', color: '#a855f7' }}
+                          onClick={connectUsb}
+                          disabled={isConnectingUsb}
+                        >
+                          <PlugZap size={14} />
+                          {isConnectingUsb ? 'Menghubungkan...' : 'Pilih Port & Hubungkan USB'}
+                        </button>
+                      ) : (
+                        <button
+                          className="clean-btn danger"
+                          style={{ flex: 1, padding: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          onClick={disconnectUsb}
+                        >
+                          <Unplug size={14} />
+                          Putus Koneksi USB
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Sub-Tab Wi-Fi: AP Mandiri vs Hotspot/Client */}

@@ -168,6 +168,21 @@ void handleCmd() {
     Serial2.println(cmd);
     Serial.println("[Web/React -> Mega]: " + cmd);
     
+    // Beri waktu sejenak (35ms) untuk menangkap balasan respon cepat dari Mega
+    unsigned long waitStart = millis();
+    while (millis() - waitStart < 35) {
+      if (Serial2.available() > 0) {
+        String msg = Serial2.readStringUntil('\n');
+        msg.trim();
+        if (msg.length() > 0) {
+          lastMegaLog = msg;
+          Serial.println("[Mega -> ESP32]: " + msg);
+        }
+        break;
+      }
+      delay(2);
+    }
+
     String json = "{\"status\":\"success\",\"command\":\"" + escapeJsonString(cmd) + "\",\"last_log\":\"" + escapeJsonString(lastMegaLog) + "\"}";
     server.send(200, "application/json", json);
   } else {

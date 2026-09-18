@@ -25,8 +25,14 @@ const Landing = () => {
     <div className="page-container landing-page">
       {/* HEADER NAVBAR */}
       <nav className="landing-nav">
-        <div className="nav-logo">
-          <span className="logo-text">DELTA OS</span>
+        <div className="nav-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img 
+            src="/logopolman.svg" 
+            alt="Logo Polman" 
+            style={{ height: '34px', width: 'auto', objectFit: 'contain' }}
+            onError={(e) => { e.target.src = '/polman.png'; }}
+          />
+          <span className="logo-text">ROBOT DELTA</span>
         </div>
         <div className="nav-links">
           <a href="#about">PHILOSOPHY</a>

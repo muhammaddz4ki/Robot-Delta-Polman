@@ -71,8 +71,16 @@ function Rod({ start, end, radius = 2.5, color = "#00ff88", metalness = 0.8, rou
 }
 
 // Full Articulated Delta Robot Digital Twin Component
-export default function DeltaRobotDigitalTwin({ targetPos, gripAngle = 125, theme = 'dark' }) {
-  const currentPos = useRef({ x: targetPos.x, y: targetPos.y, z: targetPos.z });
+export default function DeltaRobotDigitalTwin({ targetPos, x, y, z, gripAngle = 125, theme = 'dark' }) {
+  const safeTarget = targetPos || { 
+    x: Number(x) || 0, 
+    y: Number(y) || 0, 
+    z: Number(z) !== undefined && !isNaN(Number(z)) ? Number(z) : -200 
+  };
+  const targetRef = useRef(safeTarget);
+  targetRef.current = safeTarget;
+
+  const currentPos = useRef({ x: safeTarget.x, y: safeTarget.y, z: safeTarget.z });
   const currentGrip = useRef(gripAngle);
 
   // Group reference for smooth animations
@@ -114,9 +122,10 @@ export default function DeltaRobotDigitalTwin({ targetPos, gripAngle = 125, them
   useFrame((state, delta) => {
     // Lerp current position towards target position
     const lerpSpeed = Math.min(1.0, delta * 12.0);
-    currentPos.current.x += (targetPos.x - currentPos.current.x) * lerpSpeed;
-    currentPos.current.y += (targetPos.y - currentPos.current.y) * lerpSpeed;
-    currentPos.current.z += (targetPos.z - currentPos.current.z) * lerpSpeed;
+    const tgt = targetRef.current;
+    currentPos.current.x += (tgt.x - currentPos.current.x) * lerpSpeed;
+    currentPos.current.y += (tgt.y - currentPos.current.y) * lerpSpeed;
+    currentPos.current.z += (tgt.z - currentPos.current.z) * lerpSpeed;
     currentGrip.current += (gripAngle - currentGrip.current) * lerpSpeed;
 
     const { x, y, z } = currentPos.current;

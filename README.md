@@ -114,7 +114,8 @@ $$\begin{aligned}
 
 ### Amplop Ruang Kerja (Workspace Limits)
 * **Batas Jangkauan Horizontal ($XY$):** Radius maksimal $150.0\text{ mm}$ ($\sqrt{X^2 + Y^2} \le 150.0\text{ mm}$).
-* **Batas Jangkauan Vertikal ($Z$):** $Z_{\text{maks}} = -50.0\text{ mm}$ hingga $Z_{\text{min}} = -400.0\text{ mm}$.
+* **Batas Jangkauan Vertikal ($Z$):** $Z_{\text{maks}} = -50.0\text{ mm}$ hingga $Z_{\text{min}} = -400.0\text{ mm}$ (Batas fisik absolut).
+* **Margin Keselamatan Kerja ($Z_{\text{safe}}$):** $Z_{\text{safe\_min}} = -392.0\text{ mm}$ (Margin $8.0\text{ mm}$ dari $Z_{\text{min}}$ demi mencegah *stall* motor dan singularitas kinematika pada sudut lengan ekstrem).
 * **Posisi Default Standby (Home):** $X = 0.0\text{ mm},\; Y = 0.0\text{ mm},\; Z = -200.0\text{ mm}$.
 
 ---
@@ -154,9 +155,12 @@ Komunikasi data serial berjalan pada baudrate **`115200 bps`** dengan terminasi 
 |---|---|---|
 | **Gerak Koordinat** | `0 0 -250` | Menggerakkan end-effector ke target $(X, Y, Z)$ secara terkoordinasi |
 | `HOME` | `HOME` | Menjalankan *Smooth Staged Homing* (Lifting $\rightarrow$ Centering $\rightarrow$ Zeroing) |
-| `HISAP` / `CAPIT` | `HISAP` | Menyalakan relay dinamo hisap vakum (Pin D12 ON) |
-| `LEPAS` / `BUANG` | `LEPAS` | Mematikan relay dinamo hisap vakum (Pin D12 OFF) |
-| `EMG` / `STOP` | `EMG` | Toggle mode darurat (Motor mengunci posisi, hisap tetap aktif) |
+| `TIUP` / `AMBIL` | `TIUP` | Mengaktifkan pompa 1 untuk meniup (mencengkeram benda) dan menahan |
+| `HISAP` / `LEPAS` | `HISAP` | Mengaktifkan pompa 2 untuk menghisap (melepaskan benda) |
+| `SET_GRIP_TIME [t1] [t2]` | `SET_GRIP_TIME 4000 1000` | Mengatur durasi waktu tiup & hisap (1000 - 10000 ms / 1 - 10 detik) |
+| `SET_GRIP_SPEED [p1] [p2]` | `SET_GRIP_SPEED 255 255` | Mengatur kecepatan PWM pompa 1 (Tiup) dan pompa 2 (Hisap) (0-255) |
+| `STOP_PUMP` / `GRIP_STOP` | `STOP_PUMP` | Mematikan kedua pompa L298N (Kondisi Netral) |
+| `EMG` / `STOP` | `EMG` | Toggle mode darurat (Motor mengunci posisi, pompa mati seketika demi keselamatan) |
 | `RESET` | `RESET` | Melepas status darurat dan mengembalikan robot ke kondisi siap operasi |
 | `STARTA` | `STARTA` | Menjalankan sekuensi otomatis *Pick & Place* Profil A |
 | `STARTB` | `STARTB` | Menjalankan sekuensi otomatis *Pick & Place* Profil B |
@@ -196,6 +200,7 @@ Komunikasi data serial berjalan pada baudrate **`115200 bps`** dengan terminasi 
 ```text
 Robot-Delta-Polman/
 ├── .gitignore                   # Konfigurasi ignoransi berkas Git
+├── package.json                 # Konfigurasi Unified Workspace Runner (1 Terminal)
 ├── README.md                    # Dokumentasi komprehensif proyek (Dokumen ini)
 ├── DeltaRobot_Mega.ino          # Firmware utama Arduino Mega 2560 (IK, Homing & Motion Control)
 ├── DeltaRobot_ESP32.ino         # Firmware IoT Gateway ESP32 (Wi-Fi, REST API, OTA Update)
@@ -239,25 +244,32 @@ Robot-Delta-Polman/
    - Pilih Board: **ESP32 Dev Module** $\rightarrow$ klik **Upload**.
    - Hubungkan laptop ke Wi-Fi `DeltaRobot_Config` (Password: `12345678`), buka browser pada `http://192.168.4.1` atau `http://deltarobot.local` untuk konfigurasi jaringan.
 
-### 2. Konfigurasi Database & Backend
-1. Pastikan service **MySQL** telah berjalan (misal via XAMPP).
-2. Jalankan perintah instalasi dan inisialisasi server:
-   ```bash
-   cd Backend
-   cp .env.example .env
-   npm install
-   npm start
-   ```
-3. Backend akan aktif melayani request pada `http://localhost:5000`.
+### 2. Konfigurasi Web App (Backend + Frontend)
 
-### 3. Menjalankan Frontend Web Dashboard
+#### A. Persiapan Lingkungan & Dependensi
+1. Pastikan service **MySQL** telah aktif (misal via XAMPP).
+2. Di root folder `d:\Robot Delta`, install seluruh dependensi sekaligus dengan **satu perintah**:
+   ```bash
+   npm run install:all
+   ```
+   *(Perintah ini akan menginstal dependensi root runner, Backend Node.js, dan Frontend Vite secara otomatis).*
+
+#### B. Menjalankan Sistem (Unified Runner - Cukup 1 Terminal)
+Cukup buka **1 terminal** di root folder `d:\Robot Delta` dan jalankan:
 ```bash
-cd frontend
-cp .env.example .env
-npm install
 npm run dev
 ```
-Buka peramban web pada `http://localhost:5173` untuk mengakses antarmuka kontrol.
+> **Output Terminal:**
+> * `[BACKEND]` (Biru)  : Node.js Express REST API aktif di `http://localhost:5000`
+> * `[FRONTEND]` (Cyan) : Vite React Dashboard aktif di `http://localhost:5173`
+
+Buka peramban pada **`http://localhost:5173`** untuk mengakses antarmuka kontrol.
+
+#### C. Menjalankan Secara Manual (Opsi Terminal Terpisah)
+Jika Anda ingin menjalankan layanan secara terpisah di terminal independen:
+* **Hanya Backend**: `npm run dev:backend` (atau `cd Backend && npm run dev`)
+* **Hanya Frontend**: `npm run dev:frontend` (atau `cd frontend && npm run dev`)
+* **Build Produksi Frontend**: `npm run build`
 
 ---
 

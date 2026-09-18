@@ -1,0 +1,17 @@
+{
+  "name": "delta-robot-polman",
+  "version": "1.0.0",
+  "description": "Delta Robot Web Control & Monitoring System - Polman Bandung / Majalengka",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue.bold,cyan.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --prefix Backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "start": "npm --prefix Backend run start",
+    "build": "npm --prefix frontend run build",
+    "install:all": "npm install && npm --prefix Backend install && npm --prefix frontend install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
